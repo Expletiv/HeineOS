@@ -75,6 +75,9 @@ Stephan Schmidt - Minesweeper
 Max Richter - CGA Pong
 <video src="https://github.com/user-attachments/assets/c36369b6-7603-46fc-a75e-e7a561addc48"></video>
 
+Kevin Weber - CGA PAC-MAN
+<video src="https://github.com/user-attachments/assets/4fbd2a8b-3e12-461d-b1f3-d9607acc9259"></video>
+
 ### 2026
 In 2026, hhuTOS was renamed to HeineOS.
 It now works on modern 64-bit x86_64-computers with a UEFI BIOS and uses a framebuffer (provided by the bootloader) right from the start, instead of CGA text mode.
