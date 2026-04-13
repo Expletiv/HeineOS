@@ -10,7 +10,7 @@
 ### Prerequisites
 
 For building HeineOS, a *rust nightly* toolchain is required. To install rust, use [rustup](https://rustup.rs/).
-The toolchain `nightly-2026-03-01` is confirmed to work with HeineOS.
+The toolchain `nightly-2026-04-01` is confirmed to work with HeineOS.
 We also need `cargo-make` for Makefile-like build scripts.
 
 ```bash
@@ -226,9 +226,9 @@ Notice that the `lock()` function does not return a `SerialPort` reference, but 
 However, due to the `Deref` and `DerefMut` traits, we can treat the `SpinlockGuard` struct as a `SerialPort` instance and directly call `write_str()` on it.  
 In this example `COM1` is locked right at the beginning of the function. The returned guard (stored in `com1`) can then be used as many times as we want to access the `SerialPort` instance.
 We do not need to unlock the spinlock manually, because the guard will automatically unlock the spinlock when it goes out of scope.
-In this case, the compiler will automatically `drop()` on the guard at the end of the function, which unlocks the spinlock.
+In this case, the compiler will automatically call `drop()` on the guard at the end of the function, which unlocks the spinlock.
 
-*Warning:* You should not use code like this in the `main()` function, as does never return and thus never unlocks the spinlock.
+*Warning:* You should not use code like this in the `main()` function, as it does never return and thus never unlocks the spinlock.
 If you want to acquire a lock in the `main()` function, you have three options:
 
 1. If you only need to access the variable once, you can chain the function calls. The compiler will automatically drop the guard after `write_str()` returns:
@@ -238,8 +238,8 @@ COM1.lock().write_str("Hello, World!");
 2. Open a new scope and store the guard in a variable:
 ```rust
 {
-let mut com1 = COM1.lock();
-com1.write_str("Hello, World!").unwrap();
+    let mut com1 = COM1.lock();
+    com1.write_str("Hello, World!").unwrap();
 }
 ```
 3. Manually call `drop()` on the guard:
@@ -278,7 +278,7 @@ An incomplete implementation is provided in [kernel/src/device/terminal.rs](http
 The terminal stores a current position in the framebuffer, where the next character should be drawn. Once it reaches the end of the line, it automatically wraps to the next line.
 Furthermore, if the chracter is a newline character (`\n`), it also automatically moves the cursor to the beginning of the next line. The current position is made visible by drawing a *cursor* character.
 
-Implement the empty functions in `terminal.rs` to make the terminal work. Convenience functions for drawing an erasing the cursor at a given position are already provided (`draw_cursor()` and `clear_cursor()`).  
+Implement the empty functions in `terminal.rs` to make the terminal work. Convenience functions for drawing and erasing the cursor at a given position are already provided (`draw_cursor()` and `clear_cursor()`).  
 As with the serial port, we get formatted output via the `fmt::Write` trait. Implement the `write_str()` function to output a string to the terminal.
 
 Once you have finished your implementation, you can test it by using the `print!()` and `println!()` macros.
@@ -313,10 +313,10 @@ However, we still need to be able to receive input from the user. For that, we n
 For decades, the *PS/2* controller was the standard for handling keyboard and mouse input. It is still supported by some systems today and can be emulated by QEMU.
 It is much simpler than communication with a USB keyboard, which is why we use the *PS/2* controller for HeineOS.
 
-The code decoding keyboard scancodes into key events with ascii characters is already implemented in [kernel/src/device/keyboard.rs](https://github.com/hhu-bsinfo/HeineOS/blob/lesson-1/kernel/src/device/keyboard.rs).
+The code for decoding keyboard scancodes into key events with ascii characters is already implemented in [kernel/src/device/keyboard.rs](https://github.com/hhu-bsinfo/HeineOS/blob/lesson-1/kernel/src/device/keyboard.rs).
 You only need to implement the following functions:
 * `Keyboard::try_read_next_byte()`: Check if a new byte from the keyboard is available. If so, pass it to `Keyboard::decode_byte()` and return the decoded key event (or `None` if no key event could be decoded).  
-  Checking whether a byte is available works by reading the keyboard's control port and testing the `KeyboardStatus::OUTPUT_BUFFER_FULLL` bit.
+  Checking whether a byte is available works by reading the keyboard's control port and testing the `KeyboardStatus::OUTPUT_BUFFER_FULL` bit.
   The byte can then be read from the keyboard's data port.
 * `Keyboard::poll_key_event()`: Call `Keyboard::try_read_next_byte()` in a loop until a key event is detected and return it.
 * `Keyboard::poll_key_press()`: Poll key events from the keyboard until a key press event is detected and return it. Other key events are discarded.
