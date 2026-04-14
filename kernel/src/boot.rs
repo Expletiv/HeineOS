@@ -17,6 +17,7 @@
 #![allow(unreachable_code)]
 #![allow(unused_variables)]
 
+use core::fmt::Write;
 use log::{debug, error, info};
 use uefi::mem::memory_map::MemoryMapOwned;
 use crate::device::framebuffer::Framebuffer;
@@ -81,7 +82,7 @@ pub extern "C" fn main(multiboot_magic: u32, multiboot: &multiboot::BootInfo) ->
     // Load the Global Descriptor Table (code in boot.asm)
     unsafe { load_gdt(); }
 
-    // TODO: Call your demo code here.
+    info!("Kernel initialized successfully!");
 
     // Endless loop, as we cannot return from main().
     loop {}

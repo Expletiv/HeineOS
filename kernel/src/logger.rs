@@ -29,7 +29,19 @@ impl log::Log for Logger {
 
     /// Print a log record to the serial port.
     fn log(&self, record: &Record) {
-        // TODO: Write the log message to the serial port.
+        if self.enabled(record.metadata()) {
+            let level = level_abbreviation(record.level());
+
+            // Extract the file name
+            let full_path = record.file().unwrap_or("unknown");
+            let file_name = full_path.rsplit('/').next().unwrap_or(full_path);
+
+            let line = record.line().unwrap_or(0);
+            let mut com1 = serial::COM1.lock();
+
+            // Use a placeholder as time for now
+            writeln!(com1, "[0.000][{level}][{file_name}@{line}] {}", record.args()).ok();
+        }
     }
 
     /// Flush the logger.
