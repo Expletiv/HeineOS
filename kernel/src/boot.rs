@@ -20,6 +20,7 @@
 use core::fmt::Write;
 use log::{debug, error, info};
 use uefi::mem::memory_map::MemoryMapOwned;
+use crate::demo::lesson1;
 use crate::device::framebuffer::Framebuffer;
 use crate::device::serial::COM1;
 use crate::device::terminal;
@@ -83,6 +84,8 @@ pub extern "C" fn main(multiboot_magic: u32, multiboot: &multiboot::BootInfo) ->
     unsafe { load_gdt(); }
 
     info!("Kernel initialized successfully!");
+
+    lesson1::text_demo();
 
     // Endless loop, as we cannot return from main().
     loop {}
