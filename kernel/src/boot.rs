@@ -20,6 +20,7 @@
 use log::{debug, error, info};
 use uefi::mem::memory_map::MemoryMapOwned;
 use crate::device::framebuffer::Framebuffer;
+use crate::device::serial::COM1;
 use crate::device::terminal;
 use crate::logger::Logger;
 
@@ -43,8 +44,9 @@ static LOGGER: Logger = Logger::new();
 /// This function is called from `boot.asm` after the bare minimum setup is done.
 /// It sets up all necessary kernel components and then starts the scheduler.
 pub extern "C" fn main(multiboot_magic: u32, multiboot: &multiboot::BootInfo) -> ! {
-    // The first thing to do is to initialize the logger.
+    // The first thing to do is to initialize the serial port and logger.
     // Afterward, we can use logging macros like `info!()` and `error!()` and panic messages will also be logged.
+    COM1.lock().init();
     if log::set_logger(&LOGGER).is_err() {
         panic!("Failed to initialize logger");
     }

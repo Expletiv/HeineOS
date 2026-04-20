@@ -99,6 +99,11 @@ This way, we can see everything that our operating system writes to the serial p
 
 An incomplete driver for the serial port is provided in [kernel/src/device/serial.rs](https://github.com/hhu-bsinfo/HeineOS/blob/lesson-1/kernel/src/device/serial.rs).
 Implement the `ComPort::write_byte()` function (replace the `todo!()` call) to write the given byte to the serial controller's data port.
+Before actually writing the byte, you should check if the serial port is ready to accept more data.
+This can be done by first reading the `line_status_register` and checking if the `READY_TO_WRITE` bit is set.
+If the bit is not set, you should use a loop to wait until the bit is set.
+Furthermore, if the character to write is a newline character (`\n`), you should additionally write a carriage return character (`\r`) to the serial port.
+Otherwise, your terminal might go to a new line but not set the cursor to the beginning of the line.
 To test your implementation, insert the following code at the end of your `main()` function (before the endless loop):
 
 ```rust
