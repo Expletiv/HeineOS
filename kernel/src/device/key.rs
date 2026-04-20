@@ -94,6 +94,7 @@ pub enum Scancode {
     F10 = 0x44,
     F11 = 0x57,
     F12 = 0x58,
+    Meta = 0x5b
 }
 
 impl TryFrom<u8> for Scancode {
@@ -167,6 +168,7 @@ impl TryFrom<u8> for Scancode {
             0x44 => Ok(Scancode::F10),
             0x57 => Ok(Scancode::F11),
             0x58 => Ok(Scancode::F12),
+            0x5b => Ok(Scancode::Meta),
             _ => Err(()),
         }
     }
