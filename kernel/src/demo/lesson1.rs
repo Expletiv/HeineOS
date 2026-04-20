@@ -5,8 +5,8 @@
  *         Fabian Ruhland, Heinrich Heine University Duesseldorf, 2026-01-14
  * License: GPLv3
  */
-
-use crate::device::terminal::terminal;
+use crate::device::key::Scancode;
+use crate::device::keyboard::KEYBOARD;
 
 /// A simple text demo, displaying formatted numbers.
 pub fn text_demo() {
@@ -21,5 +21,19 @@ pub fn text_demo() {
 
 /// A simple keyboard demo, displaying the events of key presses and releases.
 pub fn keyboard_demo() {
-    todo!("lesson1::keyboard_demo() not implemented yet");
+    println!("Keyboard Demo:");
+    println!("Press keys on your keyboard. Press 'Esc' to exit the demo.");
+
+    let mut keyboard = KEYBOARD.lock();
+
+    loop {
+        let event = keyboard.poll_key_press();
+        println!("{:?}", event);
+
+        if let Some(Scancode::Escape) = event.scancode() {
+            break;
+        }
+    }
+
+    println!("Exiting keyboard demo.");
 }

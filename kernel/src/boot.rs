@@ -85,7 +85,7 @@ pub extern "C" fn main(multiboot_magic: u32, multiboot: &multiboot::BootInfo) ->
 
     info!("Kernel initialized successfully!");
 
-    lesson1::text_demo();
+    lesson1::keyboard_demo();
 
     // Endless loop, as we cannot return from main().
     loop {}
