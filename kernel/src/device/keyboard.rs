@@ -77,9 +77,9 @@ static SCAN_NUM_TAB: [u8; 13] = [  8, 9, 10, 53, 5, 6, 7, 27, 2, 3, 4, 11, 51 ];
 bitflags! {
     /// LED status flags for the keyboard.
     struct LedStatus: u8 {
-        const NUM_LOCK = 1;
-        const CAPS_LOCK = 2;
-        const SCROLL_LOCK = 4;
+        const SCROLL_LOCK = 1;
+        const NUM_LOCK = 2;
+        const CAPS_LOCK = 4;
     }
 }
 
