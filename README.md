@@ -5,6 +5,12 @@
 - Familiarize with the rust programming language
 - Low-level programming: Implement code to output text via the serial port and to the screen, and to read input from the keyboard
 
+## Slides for this assignment
+- Lecture 1: [Introduction](https://github.com/hhu-bsinfo/HeineOS/blob/main/slides/lecture1_introduction_(german).pdf) and [PC Speaker example](https://github.com/hhu-bsinfo/HeineOS/blob/main/slides/lecture1_speaker.pdf)
+- Lecture 2: [OS Development](https://github.com/hhu-bsinfo/HeineOS/blob/main/slides/lecture2_os-development.pdf)
+- Lecture 3: [x86-64 architecture](https://github.com/hhu-bsinfo/HeineOS/blob/main/slides/lecture3_x86-64.pdf)
+- [Keyboard](https://github.com/hhu-bsinfo/HeineOS/blob/main/slides/keyboard.pdf) slides
+
 ## Assignment 1.1: Set up the environment
 
 ### Prerequisites
