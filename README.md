@@ -9,6 +9,7 @@
 - Lecture 1: [Introduction](https://github.com/hhu-bsinfo/HeineOS/blob/main/slides/lecture1_introduction_(german).pdf) and [PC Speaker example](https://github.com/hhu-bsinfo/HeineOS/blob/main/slides/lecture1_speaker.pdf)
 - Lecture 2: [OS Development](https://github.com/hhu-bsinfo/HeineOS/blob/main/slides/lecture2_os-development.pdf)
 - Lecture 3: [x86-64 architecture](https://github.com/hhu-bsinfo/HeineOS/blob/main/slides/lecture3_x86-64.pdf)
+- Rust Crash Course [Part 1](https://github.com/hhu-bsinfo/HeineOS/blob/main/slides/rust1.pdf) and [Part 2](https://github.com/hhu-bsinfo/HeineOS/blob/main/slides/rust2.pdf)
 - [Keyboard](https://github.com/hhu-bsinfo/HeineOS/blob/main/slides/keyboard.pdf) slides
 
 ## Assignment 1.1: Set up the environment
