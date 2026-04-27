@@ -17,6 +17,8 @@
 #![allow(unreachable_code)]
 #![allow(unused_variables)]
 
+extern crate alloc;
+
 use core::fmt::Write;
 use log::{debug, error, info};
 use uefi::mem::memory_map::MemoryMapOwned;
@@ -32,6 +34,8 @@ mod library;
 mod logger;
 mod multiboot;
 mod demo;
+mod consts;
+mod allocator;
 
 unsafe extern "C" {
     fn load_gdt();
