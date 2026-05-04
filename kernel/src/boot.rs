@@ -22,7 +22,7 @@ extern crate alloc;
 use core::fmt::Write;
 use log::{debug, error, info};
 use uefi::mem::memory_map::MemoryMapOwned;
-use crate::demo::lesson1;
+use crate::allocator::global::init_allocator;
 use crate::device::framebuffer::Framebuffer;
 use crate::device::serial::COM1;
 use crate::device::terminal;
@@ -89,7 +89,9 @@ pub extern "C" fn main(multiboot_magic: u32, multiboot: &multiboot::BootInfo) ->
 
     info!("Kernel initialized successfully!");
 
-    lesson1::keyboard_demo();
+    init_allocator(consts::heap_start(), consts::HEAP_SIZE);
+
+    demo::lesson2::heap_demo();
 
     // Endless loop, as we cannot return from main().
     loop {}

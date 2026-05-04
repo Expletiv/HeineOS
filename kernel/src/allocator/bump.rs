@@ -30,22 +30,42 @@ impl BumpAllocator {
 
     /// Initialize the bump allocator.
     pub unsafe fn init(&mut self, heap_start: usize, heap_size: usize) {
-        todo!("bump::init() is not implemented yet.")
+        self.heap_start = heap_start;
+        self.heap_end = heap_start + heap_size;
+        self.next = heap_start;
     }
 
     /// Dump free memory for debugging purposes.
-    pub fn dump_free_list(&mut self) {
-        todo!("bump::dump_free_list() is not implemented yet.")
+    pub fn dump_free_list(&self) {
+        log::info!("BumpAllocator free region: [{:#x} - {:#x}] ({} bytes free, {} allocations active)",
+        self.next,
+        self.heap_end,
+        self.heap_end - self.next,
+        self.allocations,
+    );
     }
 
     /// Allocate memory of the given size and alignment.
     pub unsafe fn alloc(&mut self, layout: Layout) -> *mut u8 {
-        todo!("bump::alloc() is not implemented yet.")
+        let size = layout.size();
+        let align = layout.align();
+        // Align the pointer to the required alignment
+        let aligned_ptr = align_up(self.next, align);
+
+        self.next = aligned_ptr.wrapping_add(size);
+        self.allocations += 1;
+
+        aligned_ptr as *mut u8
     }
 
     /// Deallocate memory (not supported by bump allocator).
-    pub unsafe fn dealloc(&mut self, ptr: *mut u8, layout: Layout) {
-        todo!("bump::dealloc() is not implemented yet.")
+    pub unsafe fn dealloc(&mut self, _ptr: *mut u8, _layout: Layout) {
+        self.allocations -= 1;
+
+        // If the allocator is empty, reset everything at once.
+        if self.allocations == 0 {
+            self.next = self.heap_start;
+        }
     }
 }
 
