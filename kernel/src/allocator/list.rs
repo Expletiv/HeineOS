@@ -7,7 +7,6 @@
  */
 
 use alloc::alloc::{GlobalAlloc, Layout};
-use log::info;
 use crate::allocator::global::{align_up, Locked};
 
 /// Header of a free block in the list allocator.
@@ -59,22 +58,67 @@ impl LinkedListAllocator {
 
     /// Initialize the allocator with the heap bounds given in the constructor.
     pub unsafe fn init(&mut self, heap_start: usize, heap_size: usize) {
-        todo!("list::init() is not implemented yet.")
+        unsafe {
+            self.add_free_block(heap_start, heap_size);
+        }
+
+        self.heap_start = heap_start;
+        self.heap_end = heap_start + heap_size;
     }
 
     /// Adds the given free memory block 'addr' to the front of the free list.
     unsafe fn add_free_block(&mut self, addr: usize, size: usize) {
-        todo!("list::add_free_block() is not implemented yet.")
+        let mut node = ListNode::new(size);
+        node.next = self.head.next.take();
+        let node_ptr = addr as *mut ListNode;
+
+        unsafe {
+            node_ptr.write(node);
+            self.head.next = Some(&mut *node_ptr)
+        }
     }
 
     /// Search a free block with the given size and alignment and remove it from the list.
     fn find_free_block(&mut self, size: usize, align: usize) -> Option<(&'static mut ListNode, usize)> {
-        todo!("list::find_free_block() is not implemented yet.")
+        let mut current = &mut self.head;
+
+        while let Some(ref mut block) = current.next {
+            if let Ok(alloc_start) = Self::check_block_for_alloc(block, size, align) {
+                let next = block.next.take();
+
+                // block is large enough, remove it from the list
+                let ret = Some((current.next.take().unwrap(), alloc_start));
+
+                // link the previous block to the next block
+                current.next = next;
+
+                return ret;
+            } else {
+                // block too small, try next block
+                current = current.next.as_mut().unwrap();
+            }
+        }
+
+        // no block found
+        None
     }
 
     /// Check if the given block is large enough for an allocation with `size` and `align`.
     fn check_block_for_alloc(block: &ListNode, size: usize, align: usize) -> Result<usize,()> {
-        todo!("list::check_block_for_alloc() is not implemented yet.")
+        let alloc_start = align_up(block.start_addr(), align);
+        let alloc_end = alloc_start.checked_add(size).ok_or(())?;
+
+        if alloc_end > block.end_addr() {
+            return Err(());
+        }
+
+        // Don't allow the block if the excess is not enough to store a ListNode
+        let excess_size = block.end_addr() - alloc_end;
+        if excess_size > 0 && excess_size < size_of::<ListNode>() {
+            return Err(());
+        }
+
+        Ok(alloc_start)
     }
 
     /// Adjust the given layout so that the resulting allocated memory
@@ -90,18 +134,43 @@ impl LinkedListAllocator {
     }
 
     /// Dump the free list for debugging purposes.
-    pub fn dump_free_list(&mut self) {
-        todo!("list::dump_free_list() is not implemented yet.")
+    pub fn dump_free_list(&self) {
+        log::info!("Free memory blocks:");
+        let mut current = &self.head;
+
+        while let Some(ref block) = current.next {
+            log::info!("  {:#x} - {:#x}", block.start_addr(), block.end_addr());
+
+            current = block;
+        }
     }
 
     /// Allocate memory of the given size and alignment.
     pub unsafe fn alloc(&mut self, layout: Layout) -> *mut u8 {
-        todo!("list::alloc() is not implemented yet.")
+        let (size, align) = Self::size_align(layout);
+
+        let Some((node, alloc_start)) = self.find_free_block(size, align) else {
+            return core::ptr::null_mut();
+        };
+
+        // split the block if it has excess
+        let alloc_end = alloc_start.checked_add(size).expect("overflow");
+
+        let excess_size = node.end_addr() - alloc_end;
+        if excess_size > 0 {
+            // check_block_for_alloc() ensures that the excess is large enough to store a ListNode
+            unsafe {
+                self.add_free_block(alloc_end, excess_size);
+            }
+        }
+
+        // return the start address of the aligned memory block (might leak memory at the start of the block)
+        alloc_start as *mut u8
     }
 
     /// Free the memory block at the given pointer with the given layout.
     pub unsafe fn dealloc(&mut self, ptr: *mut u8, layout: Layout) {
-        let (size, _) = LinkedListAllocator::size_align(layout);
+        let (size, _) = Self::size_align(layout);
 
         unsafe {
             self.add_free_block(ptr as usize, size)

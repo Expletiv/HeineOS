@@ -26,6 +26,8 @@ struct MyStruct {
 /// A simple heap demo, allocating and freeing memory on the heap.
 /// The allocator state is dumped before and after each operation.
 pub fn heap_demo() {
+    demo_memory_leak();
+
     let numbers = vec![1, 2, 3, 4, 5];
     let mut squared = vec![];
 
@@ -60,6 +62,32 @@ pub fn heap_demo() {
     drop(squared);
     drop(numbers);
 
+    dump_free_list();
+}
+
+#[repr(align(64))]
+struct HighlyAlignedStruct {
+    data: [u8; 16],
+}
+
+fn demo_memory_leak() {
+    log::info!("--- 1. INITIAL HEAP ---");
+    dump_free_list();
+
+    let offset_block = Box::new([0u8; 16]);
+
+    log::info!("--- 2. AFTER OFFSET ALLOCATION ---");
+    dump_free_list();
+
+    let aligned_struct = Box::new(HighlyAlignedStruct { data: [0; 16] });
+
+    log::info!("--- 3. AFTER ALIGNED ALLOCATION ---");
+    dump_free_list();
+
+    drop(aligned_struct);
+    drop(offset_block);
+
+    log::info!("--- 4. AFTER DROPPING EVERYTHING ---");
     dump_free_list();
 }
 
