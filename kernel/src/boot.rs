@@ -91,7 +91,7 @@ pub extern "C" fn main(multiboot_magic: u32, multiboot: &multiboot::BootInfo) ->
 
     init_allocator(consts::heap_start(), consts::HEAP_SIZE);
 
-    demo::lesson2::heap_demo();
+    demo::lesson2::speaker_demo();
 
     // Endless loop, as we cannot return from main().
     loop {}

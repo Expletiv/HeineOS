@@ -8,7 +8,6 @@
  *         Fabian Ruhland, Heinrich Heine University Duesseldorf, 2026-03-18
  * License: GPLv3
  */
-
 use crate::device::cpu::IoPort;
 use crate::library::spinlock::Spinlock;
 
@@ -89,24 +88,44 @@ impl Speaker {
 
     /// Play a specific frequency for a given amount of time (milliseconds).
     pub fn play(&mut self, frequency: usize, duration: usize) {
-        todo!("Speaker::play() is not implemented yet.")
+        let counter = PIT_FREQUENCY / frequency;
+
+        unsafe {
+            self.pit_ctrl_port.outb(0xB6);
+            self.pit_data2_port.outb((counter % 256) as u8); // low byte
+            self.pit_data2_port.outb((counter >> 8) as u8); // high byte
+        }
+
+        self.on();
+        self.delay(duration);
+        self.off();
     }
 
     /// Turn on the speaker.
     /// The played tone is dependent on counter 2 of the PIT.
     pub fn on(&mut self) {
-        todo!("Speaker::on() is not implemented yet.")
+        unsafe {
+            let status = self.ppi_port.inb();
+            self.ppi_port.outb(status | 0b11);
+        }
     }
 
     /// Turn off the speaker.
     pub fn off(&mut self) {
-        todo!("Speaker::off() is not implemented yet.")
+        unsafe {
+            let status = self.ppi_port.inb();
+            self.ppi_port.outb(status & !0b11);
+        }
     }
 
     /// Return the current value of the PIT counter (16-bit).
     /// Used by `delay()` to check if the counter has reached 0 or has been reloaded.
     fn read_counter(&mut self) -> u16 {
-        todo!("Speaker::read_counter() is not implemented yet.")
+        unsafe {
+            // Send a latch command before reading the counter
+            self.pit_ctrl_port.outb(0x00);
+            self.pit_data0_port.inb() as u16 | (self.pit_data0_port.inb() as u16) << 8
+        }
     }
 
     /// Wait for a given amount of time in milliseconds using counter 0 of the PIT.
@@ -114,7 +133,27 @@ impl Speaker {
     /// This means that the counter will count down from 1193 to 0 and then reload itself.
     /// Counting from 1193 to 0 takes 1ms.
     fn delay(&mut self, duration: usize) {
-        todo!("Speaker::delay() is not implemented yet.")
+        let ticks_per_ms = 1193;
+        let control_word = 0b00110100u8;
+
+        unsafe {
+            self.pit_ctrl_port.outb(control_word);
+            self.pit_data0_port.outb((ticks_per_ms % 256) as u8);
+            self.pit_data0_port.outb((ticks_per_ms >> 8) as u8);
+        }
+
+        let mut last_counter = ticks_per_ms;
+        let mut ms = 0;
+
+        while ms < duration {
+            let counter = self.read_counter();
+
+            if counter > last_counter {
+                ms += 1;
+            }
+
+            last_counter = counter;
+        }
     }
 }
 

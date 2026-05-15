@@ -93,5 +93,5 @@ fn demo_memory_leak() {
 
 /// A demo that plays songs via the PC speaker.
 pub fn speaker_demo() {
-    todo!("lesson2::speaker_demo() is not implemented yet.")
+    speaker::tetris();
 }
