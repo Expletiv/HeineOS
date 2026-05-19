@@ -6,6 +6,10 @@
 2. Understand the functionality of the Programmable Interrupt Controller (PIC)
 3. Implement interrupt dispatching using the keyboard as the first interrupt-based device
 
+## Slides for this assignment
+- Lecture 4: [Interrupts](https://github.com/hhu-bsinfo/HeineOS/blob/main/slides/lecture4_interrupts.pdf)
+- PIC Specification: [8259A.pdf]([8259A.pdf](https://github.com/hhu-bsinfo/HeineOS/blob/main/slides/8259A.pdf))
+
 ## Assignment 3.1: Interrupt Descriptor Table (IDT)
 In this assignment you will learn how to load the IDT and test it using manual interrupts.
 
