@@ -8,7 +8,7 @@
 
 ## Slides for this assignment
 - Lecture 4: [Interrupts](https://github.com/hhu-bsinfo/HeineOS/blob/main/slides/lecture4_interrupts.pdf)
-- PIC Specification: [8259A.pdf]([8259A.pdf](https://github.com/hhu-bsinfo/HeineOS/blob/main/slides/8259A.pdf))
+- PIC Specification: [8259A.pdf](https://github.com/hhu-bsinfo/HeineOS/blob/main/slides/8259A.pdf)
 
 ## Assignment 3.1: Interrupt Descriptor Table (IDT)
 In this assignment you will learn how to load the IDT and test it using manual interrupts.
@@ -23,9 +23,9 @@ The parameter `offset` represents the address of the function to be called and m
 Furthermore, each entry must always have the options `Present`, `DPL = 0` and `64-Bit Interrupt Gate` set.
 For more information about the IDT entry structure, see the [OSDev Wiki](https://wiki.osdev.org/Interrupt_Descriptor_Table#Structure_on_x86-64).
 
-Now load your IDT in `startup.rs` by calling `idt().load()`. Afterward, `int_disp()` should be called whenever an interrupt occurs.
+Now load your IDT in `boot.rs` by calling `idt().load()`. Afterward, `int_disp()` should be called whenever an interrupt occurs.
 To test this, insert code to output a log message with the triggered interrupt number via the serial port in `int_disp()`.
-To manually trigger an interrupt, we can use the x86 instruction `int` in `startup.rs`:
+To manually trigger an interrupt, we can use the x86 instruction `int` in `boot.rs`:
 
 ```rust
 unsafe {
@@ -49,7 +49,7 @@ The interrupt service routine (ISR) of the keyboard can be left empty for now, a
 
 Information on programming the PIC is available in the [OSDev Wiki](https://wiki.osdev.org/8259_PIC) and a detailed description of the chip is given in [8259A.pdf](https://github.com/hhu-bsinfo/HeineOS/blob/main/slides/8259A.pdf).
 
-Now call the PIC's `init()` function in `startup.rs` and allow the keyboard interrupt with `keyboard::plugin()`.
+Now call the PIC's `init()` function in `boot.rs` and allow the keyboard interrupt with `keyboard::plugin()`.
 Finally, call `cpu::enable_int()` to enable hardware interrupts.
 
 When you now boot your operating system, you should see a log message from `int_disp()` whenever you press or release a key on the keyboard.
@@ -96,7 +96,7 @@ This allows us to register the ISR of a driver at a given index using the `IntVe
 
 The function `IntVectors::report()` should be called from `int_disp()` to call the `trigger()` function of a previously registered ISR (if existing).
 If no ISR is registered for the given interrupt vector, an error message should be printed and the system should be stopped (i.e., `panic!()`).
-Remove the manual test interrupt in `startup.rs` as it would otherwise cause this error.
+Remove the manual test interrupt in `boot.rs` as it would otherwise cause this error.
 
 To call `IntVectors::report()` safely, the `Spinlock` wrapping the `INT_VECTORS` global variable must be acquired.
 Usually, it is a bad idea to acquire a lock while an interrupt is being handled, as it may cause a deadlock if the lock is already acquired.
@@ -108,7 +108,7 @@ The `keyboard::plugin()` function should now be extended to register an instance
 The corresponding vector number is defined in the `InterruptVector` enum in `dispatcher.rs`.
 Furthermore, the keyboard interrupt handler should now log a message via the serial port whenever it is triggered.
 
-Finally, initialize `INT_VECTORS` in `startup.rs` by calling `init_interrupt_dispatcher()`.
+Finally, initialize `INT_VECTORS` in `boot.rs` by calling `init_interrupt_dispatcher()`.
 
 An example logging output of HeineOS after this assignment could look like this:
 
