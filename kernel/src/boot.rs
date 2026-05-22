@@ -36,6 +36,7 @@ mod multiboot;
 mod demo;
 mod consts;
 mod allocator;
+mod interrupt;
 
 unsafe extern "C" {
     fn load_gdt();

@@ -8,12 +8,26 @@
 
 use bitflags::bitflags;
 use crate::device::cpu::IoPort;
-use crate::device::key::{KeyEvent, KeyModifiers};
+use crate::device::key::{KeyEvent, KeyEventQueue, KeyModifiers};
+use crate::interrupt::isr::ISR;
+use crate::library::once::Once;
 use crate::library::spinlock::Spinlock;
 
 /// The global keyboard instance protected by a spinlock.
 /// This instance can be used to poll key events from the keyboard. Process the key event
 pub static KEYBOARD: Spinlock<Keyboard> = Spinlock::new(Keyboard::new());
+
+/// Global key event buffer.
+/// Each key is pushed to this queue by the interrupt handler and can be retrieved at a later time by the user.
+/// Wrapped inside a Once, because the Queue cannot be created inside a const function.
+static KEYBOARD_BUFFER: Once<KeyEventQueue> = Once::new();
+
+/// Global access to the key buffer.
+/// Usage: let key_buffer = keyboard::keyboard_buffer();
+///        let key = key_buffer.pop_key_event();
+pub fn keyboard_buffer() -> &'static KeyEventQueue {
+    KEYBOARD_BUFFER.init(KeyEventQueue::new)
+}
 
 /// Driver struct for the PS/2 keyboard.
 /// The keyboard may send multiple bytes for a single key event (e.g. with modifier keys).
@@ -356,4 +370,21 @@ impl Keyboard {
             key.set_scancode(code);
         }
     }
+}
+
+/// Interrupt handler struct for the keyboard.
+struct KeyboardISR;
+
+impl ISR for KeyboardISR {
+    /// Keyboard interrupt handler.
+    /// This function reads the next byte from the keyboard and decodes it into a key event.
+    fn trigger(&self) {
+        todo!("KeyboardISR::trigger() not implemented yet!");
+    }
+}
+
+/// Register the keyboard interrupt handler with the interrupt dispatcher
+/// and enable keyboard interrupts at the PIC.
+pub fn plugin() {
+    todo!("Keyboard::plugin() not implemented yet!");
 }
