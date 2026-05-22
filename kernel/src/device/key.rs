@@ -273,7 +273,7 @@ impl KeyEventQueue {
     /// If the queue is full, the key is silently discarded.
     pub fn push_key_event(&self, key: KeyEvent) {
         if self.receiver.is_closed() {
-            // Should never haven
+            // Should never happen
             panic!("KeyQueue is closed!");
         }
 
@@ -286,7 +286,7 @@ impl KeyEventQueue {
     /// If the queue is empty, None is returned.
     pub fn pop_key_event(&self) -> Option<KeyEvent> {
         if self.receiver.is_closed() {
-            // Should never haven
+            // Should never happen
             panic!("KeyQueue is closed!");
         }
 
@@ -300,7 +300,7 @@ impl KeyEventQueue {
     /// If the queue is empty, the function blocks until a key is available.
     pub fn poll_key_event(&self) -> KeyEvent {
         if self.receiver.is_closed() {
-            // Should never haven
+            // Should never happen
             panic!("KeyQueue is closed!");
         }
 

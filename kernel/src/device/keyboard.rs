@@ -5,10 +5,10 @@
  *         Fabian Ruhland, Heinrich Heine University Duesseldorf, 2026-01-14
  * License: GPLv3
  */
-
 use bitflags::bitflags;
 use crate::device::cpu::IoPort;
 use crate::device::key::{KeyEvent, KeyEventQueue, KeyModifiers};
+use crate::device::pic::{Irq, PIC};
 use crate::interrupt::isr::ISR;
 use crate::library::once::Once;
 use crate::library::spinlock::Spinlock;
@@ -386,5 +386,5 @@ impl ISR for KeyboardISR {
 /// Register the keyboard interrupt handler with the interrupt dispatcher
 /// and enable keyboard interrupts at the PIC.
 pub fn plugin() {
-    todo!("Keyboard::plugin() not implemented yet!");
+    PIC.lock().allow(Irq::Keyboard);
 }

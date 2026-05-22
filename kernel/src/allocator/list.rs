@@ -7,6 +7,7 @@
  */
 
 use alloc::alloc::{GlobalAlloc, Layout};
+use log::info;
 use crate::allocator::global::{align_up, Locked};
 
 /// Header of a free block in the list allocator.
@@ -64,6 +65,8 @@ impl LinkedListAllocator {
 
         self.heap_start = heap_start;
         self.heap_end = heap_start + heap_size;
+
+        info!("List allocator initialized: 0x{:x} - 0x{:x} (Size: {} bytes)", heap_start, heap_start + heap_size, heap_size);
     }
 
     /// Adds the given free memory block 'addr' to the front of the free list.
