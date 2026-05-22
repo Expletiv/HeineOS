@@ -74,3 +74,8 @@ args = [
     # Source files
     "${SOURCE_DIRECTORY}/demo/lesson6/peanut-gb.c"
 ]
+condition = { files_modified = { input = [
+    "${SOURCE_DIRECTORY}/demo/lesson6/peanut-gb.c"
+], output = [
+    "${BUILD_DIRECTORY}/peanut-gb.o"
+] } }
