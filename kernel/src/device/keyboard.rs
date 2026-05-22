@@ -5,10 +5,13 @@
  *         Fabian Ruhland, Heinrich Heine University Duesseldorf, 2026-01-14
  * License: GPLv3
  */
+use alloc::boxed::Box;
 use bitflags::bitflags;
+use log::info;
 use crate::device::cpu::IoPort;
 use crate::device::key::{KeyEvent, KeyEventQueue, KeyModifiers};
 use crate::device::pic::{Irq, PIC};
+use crate::interrupt::dispatcher::{IntVectors, InterruptVector};
 use crate::interrupt::isr::ISR;
 use crate::library::once::Once;
 use crate::library::spinlock::Spinlock;
@@ -379,7 +382,11 @@ impl ISR for KeyboardISR {
     /// Keyboard interrupt handler.
     /// This function reads the next byte from the keyboard and decodes it into a key event.
     fn trigger(&self) {
-        todo!("KeyboardISR::trigger() not implemented yet!");
+        info!("Keyboard interrupt handler triggered");
+        
+        KEYBOARD.lock().try_read_next_byte().map(|event| {
+            keyboard_buffer().push_key_event(event);
+        });
     }
 }
 
@@ -387,4 +394,5 @@ impl ISR for KeyboardISR {
 /// and enable keyboard interrupts at the PIC.
 pub fn plugin() {
     PIC.lock().allow(Irq::Keyboard);
+    IntVectors::register(InterruptVector::Keyboard, Box::new(KeyboardISR));
 }

@@ -117,7 +117,7 @@ impl Pic {
 
     /// Enable an IRQ to be forwarded to the processor by the PIC.
     pub fn allow (&mut self, irq: Irq) {
-        let mut port;
+        let port;
         let mut irq_num = irq as u8;
 
         if irq_num < 8 {
@@ -137,7 +137,7 @@ impl Pic {
 
     /// Disable an IRQ to be forwarded to the processor by the PIC.
     pub fn forbid (&mut self, irq: Irq) {
-        let mut port;
+        let port;
         let mut irq_num = irq as u8;
 
         if irq_num < 8 {
@@ -157,7 +157,7 @@ impl Pic {
 
     /// Get the state (enabled/disabled) of an IRQ in the PIC.
     pub fn status (&mut self, irq: Irq) -> bool {
-       let mut port;
+       let port;
        let mut irq_num = irq as u8;
 
         if irq_num < 8 {

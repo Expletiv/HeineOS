@@ -27,6 +27,7 @@ use crate::allocator::global::init_allocator;
 use crate::device::framebuffer::Framebuffer;
 use crate::device::serial::COM1;
 use crate::device::{cpu, keyboard, pic, terminal};
+use crate::interrupt::dispatcher;
 use crate::logger::Logger;
 
 #[macro_use]
@@ -92,6 +93,9 @@ pub extern "C" fn main(multiboot_magic: u32, multiboot: &multiboot::BootInfo) ->
     info!("Kernel initialized successfully!");
 
     init_allocator(consts::heap_start(), consts::HEAP_SIZE);
+    
+    info!("Initializing interrupt dispatcher");
+    dispatcher::init_interrupt_dispatcher();
 
     info!("Initializing IDT");
     interrupt::idt::idt().load();
@@ -104,10 +108,6 @@ pub extern "C" fn main(multiboot_magic: u32, multiboot: &multiboot::BootInfo) ->
 
     info!("Enabling interrupts");
     cpu::enable_int();
-
-    unsafe {
-        asm!("int 100");
-    }
 
     // Endless loop, as we cannot return from main().
     loop {}
