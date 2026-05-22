@@ -12,7 +12,6 @@ use alloc::vec::Vec;
 use crate::allocator;
 use crate::allocator::global::dump_free_list;
 use crate::device::key::Scancode;
-use crate::device::keyboard::KEYBOARD;
 use crate::device::speaker;
 use crate::device::speaker::SPEAKER;
 use crate::device::terminal::terminal;

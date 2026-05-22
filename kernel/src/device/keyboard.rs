@@ -18,7 +18,7 @@ use crate::library::spinlock::Spinlock;
 
 /// The global keyboard instance protected by a spinlock.
 /// This instance can be used to poll key events from the keyboard. Process the key event
-pub static KEYBOARD: Spinlock<Keyboard> = Spinlock::new(Keyboard::new());
+static KEYBOARD: Spinlock<Keyboard> = Spinlock::new(Keyboard::new());
 
 /// Global key event buffer.
 /// Each key is pushed to this queue by the interrupt handler and can be retrieved at a later time by the user.
@@ -169,32 +169,6 @@ impl Keyboard {
         }
 
         None
-    }
-
-    /// Poll the keyboard for the next key event (press or release).
-    /// This function blocks until a complete key event has been received and decoded.
-    ///
-    /// CAUTION: This function must not be used anymore, once the keyboard interrupt handler is active,
-    /// because it directly reads from the keyboard controller and thus interferes with the interrupt handler.
-    pub fn poll_key_event(&mut self) -> KeyEvent {
-        loop {
-            if let Some(event) = self.try_read_next_byte() {
-                return event;
-            }
-        }
-    }
-
-    /// Poll the keyboard for the next key press event.
-    /// This function blocks until a key press event has been received and decoded,
-    /// discarding any key release events.
-    pub fn poll_key_press(&mut self) -> KeyEvent {
-        loop {
-            let event = self.poll_key_event();
-
-            if event.pressed() {
-                return event;
-            }
-        }
     }
 
     /// Set the repeat rate of the keyboard (determined by the speed and delay).
@@ -383,7 +357,7 @@ impl ISR for KeyboardISR {
     /// This function reads the next byte from the keyboard and decodes it into a key event.
     fn trigger(&self) {
         info!("Keyboard interrupt handler triggered");
-        
+
         KEYBOARD.lock().try_read_next_byte().map(|event| {
             keyboard_buffer().push_key_event(event);
         });
