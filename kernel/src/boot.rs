@@ -19,6 +19,7 @@
 
 extern crate alloc;
 
+use core::arch::asm;
 use core::fmt::Write;
 use log::{debug, error, info};
 use uefi::mem::memory_map::MemoryMapOwned;
@@ -92,7 +93,11 @@ pub extern "C" fn main(multiboot_magic: u32, multiboot: &multiboot::BootInfo) ->
 
     init_allocator(consts::heap_start(), consts::HEAP_SIZE);
 
-    demo::lesson2::speaker_demo();
+    interrupt::idt::idt().load();
+
+    unsafe {
+        asm!("int 100");
+    }
 
     // Endless loop, as we cannot return from main().
     loop {}

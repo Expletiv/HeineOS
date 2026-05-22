@@ -81,7 +81,7 @@ pub unsafe fn unlock_int_vectors() {
 /// The main interrupt dispatcher.
 /// Every interrupt is routed here, if not specified otherwise in the IDT.
 pub fn dispatch_interrupt(vector: u8, stack_frame: InterruptStackFrame, error_code: Option<u64>) {
-    todo!("dispatch_interrupt() not implemented yet!");
+    println!("Dispatching interrupt {} with error code {:?}", vector, error_code);
 }
 
 /// The Interrupt vector map. Each ISR is registered in this map.
