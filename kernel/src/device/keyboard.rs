@@ -171,6 +171,24 @@ impl Keyboard {
         None
     }
 
+    fn wait_for_write(&mut self) {
+        loop {
+            let status = unsafe { self.control_port.inb() };
+            if status & KeyboardStatus::INPUT_BUFFER_FULL.bits() == 0 {
+                break;
+            }
+        }
+    }
+
+    fn wait_for_read(&mut self) {
+        loop {
+            let status = unsafe { self.control_port.inb() };
+            if status & KeyboardStatus::OUTPUT_BUFFER_FULL.bits() != 0 {
+                break;
+            }
+        }
+    }
+
     /// Set the repeat rate of the keyboard (determined by the speed and delay).
     ///
     /// The speed determines how fast repeated keys are sent.
@@ -180,12 +198,65 @@ impl Keyboard {
     /// Valid values are between 0 (minimum delay) and 3 (maximum delay).
     /// 0 = 250ms, 1 = 500ms, 2 = 750ms, 3 = 1000ms
     pub fn set_repeat_rate(&mut self, delay: u8, speed: u8) {
-        todo!("keyboard::set_repeat_rate() not implemented yet");
+        // Wait until the input buffer is empty
+        self.wait_for_write();
+
+        // Write the command ot the data port
+        unsafe {self.data_port.outb(KeyboardCommand::SetSpeed as u8) };
+
+        // Wait for an answer
+        self.wait_for_read();
+
+        // Panic if answer is not an ACK
+        let answer = unsafe { self.data_port.inb() };
+        if answer != KeyboardResponse::Ack as u8 {
+            panic!("Unexpected response from keyboard: {:#04x}", answer);
+        }
+
+        // Write the parameter byte to the data port
+        let parameter = (delay & 0b11) << 5 | (speed & 0b11111);
+        unsafe {self.data_port.outb(parameter) };
+
+        // Wait for an answer
+        self.wait_for_read();
+
+        // Panic if answer is not an ACK
+        let answer = unsafe { self.data_port.inb() };
+        if answer != KeyboardResponse::Ack as u8 {
+            panic!("Unexpected response from keyboard: {:#04x}", answer);
+        }
     }
 
     /// Turn on or off the specified keyboard LED.
     fn set_led(&mut self, led: LedStatus, on: bool) {
-        todo!("keyboard::set_led() not implemented yet");
+        self.leds.set(led, on);
+
+        // Wait until the input buffer is empty
+        self.wait_for_write();
+
+        // Write the command ot the data port
+        unsafe {self.data_port.outb(KeyboardCommand::SetLed as u8) };
+
+        // Wait for an answer
+        self.wait_for_read();
+
+        // Panic if answer is not an ACK
+        let answer = unsafe { self.data_port.inb() };
+        if answer != KeyboardResponse::Ack as u8 {
+            panic!("Unexpected response from keyboard: {:#04x}", answer);
+        }
+
+        // Write the parameter byte to the data port
+        unsafe {self.data_port.outb(self.leds.bits()) };
+
+        // Wait for an answer
+        self.wait_for_read();
+
+        // Panic if answer is not an ACK
+        let answer = unsafe { self.data_port.inb() };
+        if answer != KeyboardResponse::Ack as u8 {
+            panic!("Unexpected response from keyboard: {:#04x}", answer);
+        }
     }
 
     /// Decode a single byte from the keyboard.
