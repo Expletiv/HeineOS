@@ -39,6 +39,8 @@ mod demo;
 mod consts;
 mod allocator;
 mod interrupt;
+mod thread;
+mod coroutine;
 
 unsafe extern "C" {
     fn load_gdt();
