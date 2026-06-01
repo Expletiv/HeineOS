@@ -17,11 +17,17 @@
 #![allow(unreachable_code)]
 #![allow(unused_variables)]
 
+extern crate alloc;
+
+use core::arch::asm;
+use core::fmt::Write;
 use log::{debug, error, info};
 use uefi::mem::memory_map::MemoryMapOwned;
+use crate::allocator::global::init_allocator;
 use crate::device::framebuffer::Framebuffer;
 use crate::device::serial::COM1;
-use crate::device::terminal;
+use crate::device::{cpu, keyboard, pic, terminal};
+use crate::interrupt::dispatcher;
 use crate::logger::Logger;
 
 #[macro_use]
@@ -30,6 +36,11 @@ mod library;
 mod logger;
 mod multiboot;
 mod demo;
+mod consts;
+mod allocator;
+mod interrupt;
+mod thread;
+mod coroutine;
 
 unsafe extern "C" {
     fn load_gdt();
@@ -81,7 +92,26 @@ pub extern "C" fn main(multiboot_magic: u32, multiboot: &multiboot::BootInfo) ->
     // Load the Global Descriptor Table (code in boot.asm)
     unsafe { load_gdt(); }
 
-    // TODO: Call your demo code here.
+    info!("Kernel initialized successfully!");
+
+    init_allocator(consts::heap_start(), consts::HEAP_SIZE);
+    
+    info!("Initializing interrupt dispatcher");
+    dispatcher::init_interrupt_dispatcher();
+
+    info!("Initializing IDT");
+    interrupt::idt::idt().load();
+
+    info!("Initializing PIC");
+    pic::PIC.lock().init();
+
+    info!("Initializing keyboard");
+    keyboard::plugin();
+
+    info!("Enabling interrupts");
+    cpu::enable_int();
+    
+    demo::lesson3::keyboard_demo();
 
     // Endless loop, as we cannot return from main().
     loop {}

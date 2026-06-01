@@ -5,15 +5,32 @@
  *         Fabian Ruhland, Heinrich Heine University Duesseldorf, 2026-01-14
  * License: GPLv3
  */
-
+use alloc::boxed::Box;
 use bitflags::bitflags;
+use log::info;
 use crate::device::cpu::IoPort;
-use crate::device::key::{KeyEvent, KeyModifiers};
+use crate::device::key::{KeyEvent, KeyEventQueue, KeyModifiers};
+use crate::device::pic::{Irq, PIC};
+use crate::interrupt::dispatcher::{IntVectors, InterruptVector};
+use crate::interrupt::isr::ISR;
+use crate::library::once::Once;
 use crate::library::spinlock::Spinlock;
 
 /// The global keyboard instance protected by a spinlock.
 /// This instance can be used to poll key events from the keyboard. Process the key event
-pub static KEYBOARD: Spinlock<Keyboard> = Spinlock::new(Keyboard::new());
+static KEYBOARD: Spinlock<Keyboard> = Spinlock::new(Keyboard::new());
+
+/// Global key event buffer.
+/// Each key is pushed to this queue by the interrupt handler and can be retrieved at a later time by the user.
+/// Wrapped inside a Once, because the Queue cannot be created inside a const function.
+static KEYBOARD_BUFFER: Once<KeyEventQueue> = Once::new();
+
+/// Global access to the key buffer.
+/// Usage: let key_buffer = keyboard::keyboard_buffer();
+///        let key = key_buffer.pop_key_event();
+pub fn keyboard_buffer() -> &'static KeyEventQueue {
+    KEYBOARD_BUFFER.init(KeyEventQueue::new)
+}
 
 /// Driver struct for the PS/2 keyboard.
 /// The keyboard may send multiple bytes for a single key event (e.g. with modifier keys).
@@ -141,23 +158,35 @@ impl Keyboard {
     /// If a complete key event has been decoded, it is returned.
     /// If no byte is available or the key event is not complete yet, None is returned.
     fn try_read_next_byte(&mut self) -> Option<KeyEvent> {
-        todo!("keyboard::try_read_next_byte() not implemented yet");
+        let ctrl_port = unsafe {self.control_port.inb() };
+
+        if ctrl_port & KeyboardStatus::OUTPUT_BUFFER_FULL.bits() != 0 {
+            let code = unsafe { self.data_port.inb() };
+
+            if self.decode_byte(code) {
+                return Some(self.gather);
+            }
+        }
+
+        None
     }
 
-    /// Poll the keyboard for the next key event (press or release).
-    /// This function blocks until a complete key event has been received and decoded.
-    ///
-    /// CAUTION: This function must not be used anymore, once the keyboard interrupt handler is active,
-    /// because it directly reads from the keyboard controller and thus interferes with the interrupt handler.
-    pub fn poll_key_event(&mut self) -> KeyEvent {
-        todo!("keyboard::poll_key_event() not implemented yet");
+    fn wait_for_write(&mut self) {
+        loop {
+            let status = unsafe { self.control_port.inb() };
+            if status & KeyboardStatus::INPUT_BUFFER_FULL.bits() == 0 {
+                break;
+            }
+        }
     }
 
-    /// Poll the keyboard for the next key press event.
-    /// This function blocks until a key press event has been received and decoded,
-    /// discarding any key release events.
-    pub fn poll_key_press(&mut self) -> KeyEvent {
-        todo!("keyboard::poll_key_press() not implemented yet");
+    fn wait_for_read(&mut self) {
+        loop {
+            let status = unsafe { self.control_port.inb() };
+            if status & KeyboardStatus::OUTPUT_BUFFER_FULL.bits() != 0 {
+                break;
+            }
+        }
     }
 
     /// Set the repeat rate of the keyboard (determined by the speed and delay).
@@ -169,12 +198,65 @@ impl Keyboard {
     /// Valid values are between 0 (minimum delay) and 3 (maximum delay).
     /// 0 = 250ms, 1 = 500ms, 2 = 750ms, 3 = 1000ms
     pub fn set_repeat_rate(&mut self, delay: u8, speed: u8) {
-        todo!("keyboard::set_repeat_rate() not implemented yet");
+        // Wait until the input buffer is empty
+        self.wait_for_write();
+
+        // Write the command ot the data port
+        unsafe {self.data_port.outb(KeyboardCommand::SetSpeed as u8) };
+
+        // Wait for an answer
+        self.wait_for_read();
+
+        // Panic if answer is not an ACK
+        let answer = unsafe { self.data_port.inb() };
+        if answer != KeyboardResponse::Ack as u8 {
+            panic!("Unexpected response from keyboard: {:#04x}", answer);
+        }
+
+        // Write the parameter byte to the data port
+        let parameter = (delay & 0b11) << 5 | (speed & 0b11111);
+        unsafe {self.data_port.outb(parameter) };
+
+        // Wait for an answer
+        self.wait_for_read();
+
+        // Panic if answer is not an ACK
+        let answer = unsafe { self.data_port.inb() };
+        if answer != KeyboardResponse::Ack as u8 {
+            panic!("Unexpected response from keyboard: {:#04x}", answer);
+        }
     }
 
     /// Turn on or off the specified keyboard LED.
     fn set_led(&mut self, led: LedStatus, on: bool) {
-        todo!("keyboard::set_led() not implemented yet");
+        self.leds.set(led, on);
+
+        // Wait until the input buffer is empty
+        self.wait_for_write();
+
+        // Write the command ot the data port
+        unsafe {self.data_port.outb(KeyboardCommand::SetLed as u8) };
+
+        // Wait for an answer
+        self.wait_for_read();
+
+        // Panic if answer is not an ACK
+        let answer = unsafe { self.data_port.inb() };
+        if answer != KeyboardResponse::Ack as u8 {
+            panic!("Unexpected response from keyboard: {:#04x}", answer);
+        }
+
+        // Write the parameter byte to the data port
+        unsafe {self.data_port.outb(self.leds.bits()) };
+
+        // Wait for an answer
+        self.wait_for_read();
+
+        // Panic if answer is not an ACK
+        let answer = unsafe { self.data_port.inb() };
+        if answer != KeyboardResponse::Ack as u8 {
+            panic!("Unexpected response from keyboard: {:#04x}", answer);
+        }
     }
 
     /// Decode a single byte from the keyboard.
@@ -336,4 +418,26 @@ impl Keyboard {
             key.set_scancode(code);
         }
     }
+}
+
+/// Interrupt handler struct for the keyboard.
+struct KeyboardISR;
+
+impl ISR for KeyboardISR {
+    /// Keyboard interrupt handler.
+    /// This function reads the next byte from the keyboard and decodes it into a key event.
+    fn trigger(&self) {
+        info!("Keyboard interrupt handler triggered");
+
+        KEYBOARD.lock().try_read_next_byte().map(|event| {
+            keyboard_buffer().push_key_event(event);
+        });
+    }
+}
+
+/// Register the keyboard interrupt handler with the interrupt dispatcher
+/// and enable keyboard interrupts at the PIC.
+pub fn plugin() {
+    PIC.lock().allow(Irq::Keyboard);
+    IntVectors::register(InterruptVector::Keyboard, Box::new(KeyboardISR));
 }
