@@ -111,11 +111,8 @@ pub extern "C" fn main(multiboot_magic: u32, multiboot: &multiboot::BootInfo) ->
 
     info!("Enabling interrupts");
     cpu::enable_int();
-
-    info!("Starting scheduler");
-    scheduler::scheduler().schedule();
     
-    demo::lesson4::coroutine_demo();
+    demo::lesson4::thread_demo();
 
     // Endless loop, as we cannot return from main().
     loop {}
