@@ -26,7 +26,24 @@ pub fn next_id() -> usize {
 #[unsafe(naked)]
 unsafe extern "C" fn thread_start(stack_ptr: usize) {
     naked_asm!(
-        // TODO: Implement assembly code for starting a thread
+        "mov rsp, rdi", // Set the stack pointer to the prepared stack
+        "popfq", // Set rflags so that interrupts are disabled
+        "pop rbp",
+        "pop rdi",
+        "pop rsi",
+        "pop rdx",
+        "pop rcx",
+        "pop rbx",
+        "pop rax",
+        "pop r15",
+        "pop r14",
+        "pop r13",
+        "pop r12",
+        "pop r11",
+        "pop r10",
+        "pop r9",
+        "pop r8",
+        // The address to the kickoff function is now at the top of the stack and we will call it
         "ret"
     )
 }
@@ -37,7 +54,44 @@ unsafe extern "C" fn thread_start(stack_ptr: usize) {
 #[unsafe(naked)]
 unsafe extern "C" fn thread_switch(current_stack_ptr: *mut usize, next_stack: usize) {
     naked_asm!(
-        // TODO: Implement assembly code for switching threads
+        "push r8",
+        "push r9",
+        "push r10",
+        "push r11",
+        "push r12",
+        "push r13",
+        "push r14",
+        "push r15",
+        "push rax",
+        "push rbx",
+        "push rcx",
+        "push rdx",
+        "push rsi",
+        "push rdi",
+        "push rbp",
+        "pushfq", // rflags
+        "mov [rdi], rsp", // Save the current stack pointer
+        "mov rsp, rsi", // Switch to the next stack
+
+        "popfq",
+        "pop rbp",
+        "pop rdi",
+        "pop rsi",
+        "pop rdx",
+        "pop rcx",
+        "pop rbx",
+        "pop rax",
+        "pop r15",
+        "pop r14",
+        "pop r13",
+        "pop r12",
+        "pop r11",
+        "pop r10",
+        "pop r9",
+        "pop r8",
+
+        // Depending on whether we ran this function before, we will either return to the kickoff
+        // function (first time) or to the point where we switched away from this thread
         "ret"
     )
 }
@@ -79,13 +133,17 @@ impl Thread {
     /// This function is only once by the scheduler.
     /// The scheduler does further thread switching via `switch()`.
     pub fn start(&mut self) {
-        todo!("Thread::start() is not implemented yet.");
+        unsafe {
+            thread_start(self.stack_ptr);
+        }
     }
 
     /// Switch from the `current` thread to the `next` thread.
     /// This function is called by the scheduler to switch between threads.
     pub unsafe fn switch(current: *mut Thread, next: *mut Thread) {
-        todo!("Thread::switch() is not implemented yet.");
+        unsafe {
+            thread_switch(&mut (*current).stack_ptr, (*next).stack_ptr);
+        }
     }
 
     /// Get the ID of the thread.
