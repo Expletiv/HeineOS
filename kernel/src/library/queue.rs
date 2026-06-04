@@ -69,7 +69,25 @@ impl<T> LinkedQueue<T> {
     pub fn remove<F>(&mut self, f: F) -> bool
     where F: Fn(&T) -> bool
     {
-        todo!("LinkedQueue::remove() is not implemented yet.")
+        let mut current = &mut self.head;
+
+        loop {
+            match current {
+                // Found a node that matches the predicate
+                Some(node) if f(&node.data) => {
+                    *current = node.next.take();
+                    return true;
+                }
+                // The node doesn't match
+                Some(node) => {
+                    current = &mut node.next;
+                }
+                // Reached end of list
+                None => {
+                    return false;
+                }
+            }
+        }
     }
 }
 
