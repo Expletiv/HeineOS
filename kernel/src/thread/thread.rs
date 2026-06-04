@@ -27,6 +27,10 @@ pub fn next_id() -> usize {
 unsafe extern "C" fn thread_start(stack_ptr: usize) {
     naked_asm!(
         "mov rsp, rdi", // Set the stack pointer to the prepared stack
+        
+        // We need to unlock the scheduler here to prevent deadlocks
+        "call unlock_scheduler",
+
         "popfq", // Set rflags so that interrupts are disabled
         "pop rbp",
         "pop rdi",
@@ -72,6 +76,9 @@ unsafe extern "C" fn thread_switch(current_stack_ptr: *mut usize, next_stack: us
         "pushfq", // rflags
         "mov [rdi], rsp", // Save the current stack pointer
         "mov rsp, rsi", // Switch to the next stack
+
+        // Unlock the scheduler here to prevent deadlocks
+        "call unlock_scheduler",
 
         "popfq",
         "pop rbp",

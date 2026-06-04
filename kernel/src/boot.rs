@@ -29,6 +29,7 @@ use crate::device::serial::COM1;
 use crate::device::{cpu, keyboard, pic, terminal};
 use crate::interrupt::dispatcher;
 use crate::logger::Logger;
+use crate::thread::scheduler;
 
 #[macro_use]
 mod device;
@@ -110,6 +111,9 @@ pub extern "C" fn main(multiboot_magic: u32, multiboot: &multiboot::BootInfo) ->
 
     info!("Enabling interrupts");
     cpu::enable_int();
+
+    info!("Starting scheduler");
+    scheduler::scheduler().schedule();
     
     demo::lesson4::coroutine_demo();
 
