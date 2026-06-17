@@ -69,7 +69,7 @@ command = "${CC}"
 cwd = "${BUILD_DIRECTORY}"
 args = [
     # Compiler flags
-    "-c", "-nostdlib", "-ffreestanding", "-fno-stack-protector", "-fpic", "-std=gnu99", "-O${CC_OPT_LEVEL}", "-g", "-march=${TARGET_CPU}",
+    "-c", "-nostdlib", "-ffreestanding", "-fno-stack-protector", "-fpic", "-std=gnu99", "-O${CC_OPT_LEVEL}", "-g", "-march=${TARGET_CPU}", "-mno-mmx", "-mno-sse", "-mno-avx",
 
     # Source files
     "${SOURCE_DIRECTORY}/demo/lesson6/peanut-gb.c"
