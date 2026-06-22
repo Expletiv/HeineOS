@@ -115,7 +115,7 @@ pub extern "C" fn main(multiboot_magic: u32, multiboot: &multiboot::BootInfo) ->
     info!("Enabling interrupts");
     cpu::enable_int();
     
-    demo::lesson4::thread_demo();
+    demo::lesson2::speaker_demo();
 
     // Endless loop, as we cannot return from main().
     loop {}

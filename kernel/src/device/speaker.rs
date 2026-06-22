@@ -9,6 +9,7 @@
  * License: GPLv3
  */
 use crate::device::cpu::IoPort;
+use crate::device::pit;
 use crate::library::spinlock::Spinlock;
 
 pub static SPEAKER: Spinlock<Speaker> = Spinlock::new(Speaker::new());
@@ -133,27 +134,7 @@ impl Speaker {
     /// This means that the counter will count down from 1193 to 0 and then reload itself.
     /// Counting from 1193 to 0 takes 1ms.
     fn delay(&mut self, duration: usize) {
-        let ticks_per_ms = 1193;
-        let control_word = 0b00110100u8;
-
-        unsafe {
-            self.pit_ctrl_port.outb(control_word);
-            self.pit_data0_port.outb((ticks_per_ms % 256) as u8);
-            self.pit_data0_port.outb((ticks_per_ms >> 8) as u8);
-        }
-
-        let mut last_counter = ticks_per_ms;
-        let mut ms = 0;
-
-        while ms < duration {
-            let counter = self.read_counter();
-
-            if counter > last_counter {
-                ms += 1;
-            }
-
-            last_counter = counter;
-        }
+        pit::wait(duration);
     }
 }
 

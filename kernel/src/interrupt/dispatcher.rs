@@ -9,7 +9,6 @@
  */
 
 use alloc::{boxed::Box, vec::Vec};
-use log::info;
 use crate::device::cpu;
 use crate::interrupt::idt;
 use crate::interrupt::idt::InterruptStackFrame;
@@ -82,8 +81,6 @@ pub unsafe fn unlock_int_vectors() {
 /// The main interrupt dispatcher.
 /// Every interrupt is routed here, if not specified otherwise in the IDT.
 pub fn dispatch_interrupt(vector: u8, stack_frame: InterruptStackFrame, error_code: Option<u64>) {
-    info!("Dispatching interrupt vector {}", vector);
-
     if !INT_VECTORS.lock().report(vector) {
         panic!("No ISR registered for interrupt {}", vector);
     }
