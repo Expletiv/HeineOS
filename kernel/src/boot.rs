@@ -26,7 +26,7 @@ use uefi::mem::memory_map::MemoryMapOwned;
 use crate::allocator::global::init_allocator;
 use crate::device::framebuffer::Framebuffer;
 use crate::device::serial::COM1;
-use crate::device::{cpu, keyboard, pic, terminal};
+use crate::device::{cpu, keyboard, pic, pit, terminal};
 use crate::interrupt::dispatcher;
 use crate::logger::Logger;
 use crate::thread::scheduler;
@@ -105,6 +105,9 @@ pub extern "C" fn main(multiboot_magic: u32, multiboot: &multiboot::BootInfo) ->
 
     info!("Initializing PIC");
     pic::PIC.lock().init();
+
+    info!("Initializing PIT");
+    pit::plugin();
 
     info!("Initializing keyboard");
     keyboard::plugin();
