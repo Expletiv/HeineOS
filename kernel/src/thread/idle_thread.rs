@@ -7,13 +7,19 @@
  *         Fabian Ruhland, Heinrich Heine University Dusseldorf, 2026-01-15
  * License: GPLv3
  */
-
+use crate::device::pit::system_time;
 use crate::thread::scheduler::scheduler;
 
 /// Switch to the next thread in an endless loop.
 /// This function is run in its own thread to ensure that the scheduler always has at least one thread running.
 pub fn idle_thread() {
     loop {
+        let time = system_time();
+
+        if time % 100 == 0 {
+            scheduler().cleanup_terminated_threads();
+        }
+
         scheduler().yield_cpu();
     }
 }

@@ -44,6 +44,7 @@ pub unsafe extern "C" fn unlock_scheduler() {
 struct SchedulerState {
     active_thread: Option<Box<Thread>>,
     ready_queue: LinkedQueue<Box<Thread>>,
+    terminated_threads: LinkedQueue<Box<Thread>>,
     initialized: bool,
 }
 
@@ -60,6 +61,7 @@ impl Scheduler {
         let state = SchedulerState {
             active_thread: Some(Thread::new(idle_thread)),
             ready_queue: LinkedQueue::new(),
+            terminated_threads: LinkedQueue::new(),
             initialized: false,
         };
 
@@ -96,18 +98,34 @@ impl Scheduler {
 
         // The active thread is never None, since we must at least have the idle thread.
         let mut current = state.active_thread.take().unwrap();
+        let current_ptr = unsafe { ptr::from_mut(current.as_mut()) };
+
         // The idle thread never exits, so there must be at least one thread in the queue.
         let next = state.ready_queue.dequeue().unwrap();
 
         // Set the dequeued thread as the active thread,
         // overwriting the current one, which we want to exit.
         state.active_thread = Some(next);
+        state.terminated_threads.enqueue(current);
 
         unsafe {
             // Switch to the next thread.
             // `current` still contains the old thread we want to exit,
             // while `state.active_thread` contains the next one.
-            Thread::switch(current.as_mut(), state.active_thread.as_mut().unwrap().as_mut());
+            Thread::switch(current_ptr, state.active_thread.as_mut().unwrap().as_mut());
+        }
+    }
+
+    pub fn cleanup_terminated_threads(&self) {
+        let Some(mut state) = self.state.try_lock() else {
+            return;
+        };
+
+        // Drop all terminated threads
+        loop {
+            let Some(thread) = state.terminated_threads.dequeue() else {
+                break;
+            };
         }
     }
 
