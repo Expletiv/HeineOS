@@ -12,7 +12,7 @@ use crate::device::cpu::IoPort;
 use crate::device::{framebuffer, terminal};
 use crate::device::framebuffer::Framebuffer;
 use crate::device::pic::{Irq, PIC};
-use crate::device::terminal::{framebuffer, terminal};
+use crate::interrupt;
 use crate::interrupt::dispatcher::{IntVectors, InterruptVector};
 use crate::interrupt::isr::ISR;
 use crate::library::once::Once;
@@ -95,6 +95,12 @@ impl ISR for TimerISR {
             if let Some(mut framebuffer) = framebuffer {
                 framebuffer.draw_char(spinner_char, 256, 256, framebuffer::WHITE, framebuffer::BLACK);
             }
+        }
+
+        if time % 10 == 0 {
+            // We still hold the lock on INT_VECTORS, release it before switching threads
+            unsafe { interrupt::dispatcher::unlock_int_vectors(); }
+            scheduler().yield_cpu();
         }
     }
 }

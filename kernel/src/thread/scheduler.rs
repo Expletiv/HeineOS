@@ -43,7 +43,8 @@ pub unsafe extern "C" fn unlock_scheduler() {
 /// The state is contained in its own struct so that it can be locked via a mutex.
 struct SchedulerState {
     active_thread: Option<Box<Thread>>,
-    ready_queue: LinkedQueue<Box<Thread>>
+    ready_queue: LinkedQueue<Box<Thread>>,
+    initialized: bool,
 }
 
 /// Represents the scheduler.
@@ -59,6 +60,7 @@ impl Scheduler {
         let state = SchedulerState {
             active_thread: Some(Thread::new(idle_thread)),
             ready_queue: LinkedQueue::new(),
+            initialized: false,
         };
 
         Scheduler { state: Spinlock::new(state) }
@@ -75,6 +77,7 @@ impl Scheduler {
     /// This function must only be called once.
     pub fn schedule(&self) {
         let mut state = self.state.lock();
+        state.initialized = true;
 
         // The active thread is never None, since we must at least have the idle thread.
         state.active_thread.as_mut().unwrap().start();
@@ -110,7 +113,19 @@ impl Scheduler {
 
     /// Yield the CPU and switch to the next thread in the ready queue.
     pub fn yield_cpu(&self) {
-        let mut state = self.state.lock();
+        let Some(mut state) = self.state.try_lock() else {
+            return;
+        };
+
+        // If the scheduler is not initialized, we cannot yield the CPU
+        if !state.initialized {
+            return;
+        }
+
+        // If the allocator is locked, we cannot modify the ready queue
+        if allocator::global::is_allocator_locked() {
+            return;
+        }
 
         // Continue if there is no other thread in the queue
         let Some(next) = state.ready_queue.dequeue() else {
