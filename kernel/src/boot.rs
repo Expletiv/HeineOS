@@ -8,6 +8,7 @@
 #![no_std]
 #![feature(abi_x86_interrupt)]
 #![feature(unsafe_cell_access)]
+#![feature(c_size_t)]
 
 // Silence compiler warnings.
 // This is done to avoid overwhelming compiler output when building the OS at the beginning.
@@ -42,6 +43,7 @@ mod allocator;
 mod interrupt;
 mod thread;
 mod coroutine;
+mod filesystem;
 
 unsafe extern "C" {
     fn load_gdt();

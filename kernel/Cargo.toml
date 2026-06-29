@@ -13,3 +13,4 @@ log = "0.4.29"
 uefi = "0.36.1"
 uefi-raw = "0.13.0"
 nolock = { version = "0.4.1", default-features = false, features = ["queues"]}
+tar-no-std = "0.4.2"
