@@ -6,7 +6,12 @@
 3. Learn the difference between coroutines and threads
 4. Understand how a scheduler works
 
-*It is recommended to read the [assembler crash course](https://github.com/hhu-bsinfo/HeineOS/blob/main/slides/asm.pdf) first.*
+*It is recommended to read the [assembly crash course](https://github.com/hhu-bsinfo/HeineOS/blob/main/slides/asm.pdf) first.*
+
+## Slides for this assignment
+- Lecture 5: [Coroutines](https://github.com/hhu-bsinfo/HeineOS/blob/main/slides/lecture5_coroutines.pdf)
+- Lecture 6: [Scheduling](https://github.com/hhu-bsinfo/HeineOS/blob/main/slides/lecture6_scheduling.pdf)
+- [Assembly Crash Course](https://github.com/hhu-bsinfo/HeineOS/blob/main/slides/asm.pdf)
 
 ## Assignment 4.1: Coroutines
 In this assignment, you will implement **coroutines** using Rust and assembly language. We use coroutines as a preliminary step towards multithreading.
