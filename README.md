@@ -5,6 +5,8 @@
 2. Learn how to parse and display bitmap files
 3. Port a Game Boy emulator (Peanut-GB) to HeineOS that can load a ROM image from the filesystem
 
+## Slides for this assignment
+- Lecture 7: [Filesystem](https://github.com/hhu-bsinfo/HeineOS/blob/main/slides/lecture7_filesystem.pdf)
 
 ## Assignment 6.1: Filesystem
 In this assignment, you will implement a basic read-only filesystem.
