@@ -16,13 +16,23 @@ The lessons are available at the branches of this repository.
 The first seven lessons are part of the first course *Operating Systems Development* (Betriebssystementwicklung),
 while the remaining seven lessons are part of the second course *Isolation and Protection in Operating Systems* (Isolation und Schutz in Betriebssystemen).
 
+**Operating Systems Development:**
 - Lesson 1: [Input/Output](https://github.com/hhu-bsinfo/HeineOS/tree/lesson-1)
 - Lesson 2: [Memory Management & PC Speaker](https://github.com/hhu-bsinfo/HeineOS/tree/lesson-2)
 - Lesson 3: [Interrupts](https://github.com/hhu-bsinfo/HeineOS/tree/lesson-3)
 - Lesson 4: [Cooperative Multitasking](https://github.com/hhu-bsinfo/HeineOS/tree/lesson-4)
 - Lesson 5: [Preemptive Multitasking](https://github.com/hhu-bsinfo/HeineOS/tree/lesson-5)
 - Lesson 6: [Filesystem & Porting a Game Boy Emulator](https://github.com/hhu-bsinfo/HeineOS/tree/lesson-6)
-- Lesson 7: [Implement your own application](https://github.com/hhu-bsinfo/HeineOS/tree/lesson-7)
+- Lesson 7: [Implement your own Application or OS Component](https://github.com/hhu-bsinfo/HeineOS/tree/lesson-7)
+
+**Isolation and Protection in Operating Systems:**
+- Lesson 8: [User Mode Threads](https://github.com/hhu-bsinfo/HeineOS/tree/lesson-8)
+- Lesson 9: [System Calls](https://github.com/hhu-bsinfo/HeineOS/tree/lesson-9)
+- Lesson 10: [Memory Management for Physical Memory](https://github.com/hhu-bsinfo/HeineOS/tree/lesson-10)
+- Lesson 11: [Paging](https://github.com/hhu-bsinfo/HeineOS/tree/lesson-11)
+- Lesson 12: [Processes](https://github.com/hhu-bsinfo/HeineOS/tree/lesson-12)
+- Lesson 13: [Managing Virtual Address Spaces](https://github.com/hhu-bsinfo/HeineOS/tree/lesson-13)
+- Lesson 14: [Implement your own Application or OS Component](https://github.com/hhu-bsinfo/HeineOS/tree/lesson-14)
 
 ## Hall of Fame
 Each year, exceptional submissions are included in our *Hall of Fame*.
