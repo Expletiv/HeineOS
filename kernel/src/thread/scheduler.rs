@@ -98,7 +98,7 @@ impl Scheduler {
 
         // The active thread is never None, since we must at least have the idle thread.
         let mut current = state.active_thread.take().unwrap();
-        let current_ptr = unsafe { ptr::from_mut(current.as_mut()) };
+        let current_ptr = ptr::from_mut(current.as_mut());
 
         // The idle thread never exits, so there must be at least one thread in the queue.
         let next = state.ready_queue.dequeue().unwrap();
@@ -151,7 +151,7 @@ impl Scheduler {
         };
 
         let mut current = state.active_thread.take().unwrap();
-        let current_ptr = unsafe { ptr::from_mut(current.as_mut()) };
+        let current_ptr = ptr::from_mut(current.as_mut());
         
         state.active_thread = Some(next);
         state.ready_queue.enqueue(current);

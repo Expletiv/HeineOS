@@ -177,7 +177,7 @@ impl TarFs {
     /// Get the size of an opened file in bytes.
     /// If the provided file handle is invalid, an `FsError::InvalidHandle` error is returned.
     pub fn size(&self, handle: FileHandle) -> Result<usize, FsError> {
-        let mut handles = self.open_handles.lock();
+        let handles = self.open_handles.lock();
         let open_file = handles.get(&handle).ok_or(FsError::InvalidHandle)?;
         Ok(open_file.data.size())
     }

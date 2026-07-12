@@ -7,6 +7,7 @@
 
 use alloc::vec;
 use alloc::vec::Vec;
+use log::info;
 use crate::filesystem::tarfs::{filesystem, FsError};
 use crate::library::bitmap::Compression::BitFields;
 
@@ -101,7 +102,33 @@ impl Bitmap {
             &*(header_slice.as_ptr() as *const BitmapFileHeader)
         };
 
-        todo!("Bitmap::from_bytes() is not yet implemented");
+        if header.signature != [0x42, 0x4D] {
+            return None;
+        }
+
+        let info_header = header.info_header;
+
+        if info_header.color_planes != 1 || info_header.bits_per_pixel != 24 {
+            return None;
+        }
+
+        let width = info_header.width as usize;
+
+        // Number of bytes used for pixels per row
+        let row_size = width * 3;
+        // Number of bytes used for each row (including padding)
+        let padded_row_size = (row_size + 3) & !3;
+
+        let pixel_data: Vec<_> = data[header.data_offset as usize..]
+            // Chunk the data into rows
+            .chunks(padded_row_size)
+            // Slice only the valid pixel bytes from the row, then chunk by 3
+            .flat_map(|row| row[..row_size].as_chunks::<3>().0)
+            // Convert the 24-bit RGB values to 32-bit ARGB
+            .map(|&[b, g, r]| color(r, g, b, 0xFF))
+            .collect();
+
+        Some(Bitmap { header: *header, pixel_data })
     }
 
     /// Get the width of the bitmap in pixels.

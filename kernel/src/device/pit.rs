@@ -93,7 +93,7 @@ impl ISR for TimerISR {
 
             let framebuffer: Option<SpinlockGuard<Framebuffer>> = terminal::framebuffer().try_lock();
             if let Some(mut framebuffer) = framebuffer {
-                framebuffer.draw_char(spinner_char, 256, 256, framebuffer::WHITE, framebuffer::BLACK);
+                framebuffer.draw_char(spinner_char, 768, 16, framebuffer::WHITE, framebuffer::BLACK);
             }
         }
 

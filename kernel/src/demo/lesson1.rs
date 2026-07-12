@@ -24,7 +24,7 @@ pub fn keyboard_demo() {
     println!("Keyboard Demo:");
     println!("Press keys on your keyboard. Press 'Esc' to exit the demo.");
 
-    let mut buffer = keyboard_buffer();
+    let buffer = keyboard_buffer();
 
     loop {
         let event = buffer.poll_key_press();

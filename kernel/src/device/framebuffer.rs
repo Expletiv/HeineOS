@@ -206,6 +206,24 @@ impl Framebuffer {
             bmp_height
         };
 
-        todo!("framebuffer::draw_bitmap() is not yet implemented");
+        let pixel_data = bitmap.pixel_data();
+
+
+        for row in 0..target_height {
+            for col in 0..target_width {
+                // BMP coordinates are stored bottom-up
+                let bmp_row = target_height - row - 1;
+
+                let pixel = pixel_data[bmp_row * bmp_width + col];
+
+                unsafe {
+                    self.draw_pixel_unchecked(
+                        x + col,
+                        y + row,
+                        pixel,
+                    );
+                }
+            }
+        }
     }
 }
