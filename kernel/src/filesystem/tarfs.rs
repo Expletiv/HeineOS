@@ -81,8 +81,7 @@ impl TarFs {
         TarFs {
             archive,
             open_handles: Spinlock::new(BTreeMap::new()),
-            next_handle:
-            AtomicUsize::new(0)
+            next_handle: AtomicUsize::new(0)
         }
     }
 
@@ -100,8 +99,24 @@ impl TarFs {
             path = &path[1..];
         }
 
-        // Find the entry in the archive matching the given path.
-        todo!("tarfs::open() is not yet implemented");
+        for entry in self.archive.entries() {
+            // The filename is the full path
+            if entry.filename().as_str().unwrap() != path {
+                continue;
+            }
+
+            // Create a handle
+            let handle = FileHandle(self.next_handle_id());
+
+            self.open_handles.lock().insert(handle, OpenFile {
+                data: entry,
+                position: 0
+            });
+
+            return Ok(handle);
+        }
+
+        Err(FsError::FileNotFound)
     }
 
     /// Read data from an opened file into the provided buffer.
@@ -111,7 +126,27 @@ impl TarFs {
     /// If the file is already at the end at the start of the read operation, an `FsError::EndOfFile` error is returned.
     /// If the provided file handle is invalid, an `FsError::InvalidHandle` error is returned.
     pub fn read(&self, handle: FileHandle, buffer: &mut [u8]) -> Result<usize, FsError> {
-        todo!("tarfs::read() is not yet implemented");
+        let mut handles = self.open_handles.lock();
+
+        let open_file = handles.get_mut(&handle).ok_or(FsError::InvalidHandle)?;
+
+        let data = open_file.data.data();
+        let data_len = data.len();
+
+        // Already at the end of the file
+        if open_file.position >= data_len {
+            return Err(FsError::EndOfFile);
+        }
+
+        let bytes_to_read = (data_len - open_file.position).min(buffer.len());
+
+        buffer[..bytes_to_read].copy_from_slice(
+            &data[open_file.position..open_file.position + bytes_to_read]
+        );
+
+        open_file.position += bytes_to_read;
+
+        Ok(bytes_to_read)
     }
 
     /// Seek to a new position within an opened file.
@@ -120,12 +155,35 @@ impl TarFs {
     /// The function returns the new position within the file after seeking.
     /// If the provided file handle is invalid, an `FsError::InvalidHandle` error is returned.
     pub fn seek(&self, handle: FileHandle, offset: isize, mode: SeekMode) -> Result<usize, FsError> {
-        todo!("tarfs::seek() is not yet implemented");
+       let mut handles = self.open_handles.lock();
+
+        let open_file = handles.get_mut(&handle).ok_or(FsError::InvalidHandle)?;
+
+        let data_len = open_file.data.data().len();
+        let new_position = match mode {
+            SeekMode::Start => offset,
+            SeekMode::Current => open_file.position as isize + offset,
+            SeekMode::End => data_len as isize + offset,
+        };
+
+        // Clamp the new position to the valid range of the file
+        let clamped_position = new_position.clamp(0, data_len as isize) as usize;
+
+        open_file.position = clamped_position;
+
+        Ok(clamped_position)
     }
     
     /// Get the size of an opened file in bytes.
     /// If the provided file handle is invalid, an `FsError::InvalidHandle` error is returned.
     pub fn size(&self, handle: FileHandle) -> Result<usize, FsError> {
-        todo!("tarfs::size() is not yet implemented");
+        let mut handles = self.open_handles.lock();
+        let open_file = handles.get(&handle).ok_or(FsError::InvalidHandle)?;
+        Ok(open_file.data.size())
+    }
+
+    pub fn close(&self, handle: FileHandle) {
+        let mut handles = self.open_handles.lock();
+        handles.remove(&handle);
     }
 }

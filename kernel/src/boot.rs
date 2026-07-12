@@ -28,6 +28,7 @@ use crate::allocator::global::init_allocator;
 use crate::device::framebuffer::Framebuffer;
 use crate::device::serial::COM1;
 use crate::device::{cpu, keyboard, pic, pit, terminal};
+use crate::filesystem::tarfs;
 use crate::interrupt::dispatcher;
 use crate::logger::Logger;
 use crate::thread::scheduler;
@@ -98,6 +99,16 @@ pub extern "C" fn main(multiboot_magic: u32, multiboot: &multiboot::BootInfo) ->
     info!("Kernel initialized successfully!");
 
     init_allocator(consts::heap_start(), consts::HEAP_SIZE);
+
+    // Find initial ramdisk (initrd) in memory
+    let initrd = multiboot
+        .find_tag::<multiboot::ModuleTag>(multiboot::TagType::Module)
+        .expect("Missing initial ramdisk");
+
+    let tarfs_archive = tar_no_std::TarArchiveRef::new(initrd.as_slice()).expect("Failed to parse initrd");
+
+    info!("Initializing tarfs filesystem");
+    tarfs::init_filesystem(tarfs_archive);
     
     info!("Initializing interrupt dispatcher");
     dispatcher::init_interrupt_dispatcher();
@@ -117,7 +128,7 @@ pub extern "C" fn main(multiboot_magic: u32, multiboot: &multiboot::BootInfo) ->
     info!("Enabling interrupts");
     cpu::enable_int();
     
-    demo::lesson5::thread_demo();
+    demo::lesson6::print_file::print_file();
 
     // Endless loop, as we cannot return from main().
     loop {}
