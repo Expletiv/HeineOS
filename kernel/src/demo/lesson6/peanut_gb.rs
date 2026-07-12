@@ -5,10 +5,16 @@
  * Author: Fabian Ruhland, Heinrich Heine University Duesseldorf, 2026-04-01
  * License: GPLv3
  */
-
+use alloc::vec;
 use alloc::vec::Vec;
 use core::ffi::{c_char, c_int, c_size_t, c_void, CStr};
-use log::error;
+use log::{error, info};
+use crate::device::key::KeyEventQueue;
+use crate::device::keyboard::keyboard_buffer;
+use crate::device::pit;
+use crate::device::pit::system_time;
+use crate::device::terminal::{framebuffer, terminal};
+use crate::filesystem::tarfs::filesystem;
 use crate::library::once::Once;
 
 unsafe extern "C" {
@@ -144,8 +150,7 @@ static ROM: Once<Vec<u8>> = Once::new();
 /// Read a byte from the ROM file at the offset specified by `addr`.
 /// This is a callback function for the PeanutGB emulator.
 unsafe extern "C" fn gb_rom_read(_gb: *mut c_void, addr: u32) -> u8 {
-    // TODO: Read a byte from the ROM file.
-    0
+    ROM.get().unwrap()[addr as usize]
 }
 
 /// Read a byte from the save RAM at the offset specified by `addr`.
@@ -170,7 +175,27 @@ unsafe extern "C" fn gb_cart_ram_write(_gb: *mut c_void, addr: u32, val: u8) {
 /// Each pixel is represented by a single byte, whose first two bits represent the color index.
 /// The other bits are used for Game Boy Color emulation, but are ignored in this implementation.
 unsafe extern "C" fn lcd_draw_line(_gb: *mut c_void, pixels: *const u8, line: u8) {
-    // TODO: Render the line to the framebuffer
+    let mut framebuffer = framebuffer().lock();
+
+    let x_offset = 256;
+    let y_offset = 128;
+
+    let scale = 2;
+
+    let pixels = core::slice::from_raw_parts(pixels, GB_SCREEN_RES.0);
+
+    for (i, pixel) in pixels.iter().enumerate() {
+        let colour_index = *pixel & 0x3;
+        let colour = PALETTE[colour_index as usize];
+
+        for x_pos in 0..scale {
+            let x = i * scale + x_pos + x_offset;
+            for y_pos in 0..scale {
+                let y = line as usize * scale + y_pos + y_offset;
+                framebuffer.draw_pixel_unchecked(x, y, colour);
+            }
+        }
+    }
 }
 
 /// Handle emulation errors.
@@ -182,5 +207,77 @@ unsafe extern "C" fn gb_error(_gb: *mut c_void, error: c_int, addr: u16) {
 
 /// Play the given ROM file using the Peanut-GB emulator.
 pub fn play(rom_path: &str) {
-    todo!("peanut-gb demo is not yet implemented");
+    let filesystem = filesystem();
+
+    ROM.init(|| {
+        let file = filesystem.open(rom_path).expect("Failed to open ROM file");
+        let size = filesystem.size(file).expect("Failed to get ROM file size");
+
+        let mut rom = vec![0u8; size];
+        filesystem.read(file, &mut rom).expect("Failed to read ROM file");
+
+        rom
+    });
+
+    let mut gb = vec![0u8; unsafe { gb_size() as usize }];
+    let gb_ptr = gb.as_mut_ptr();
+
+    unsafe {
+        let _ = gb_init(
+            gb_ptr as *mut c_void,
+            gb_rom_read,
+            gb_cart_ram_read,
+            gb_cart_ram_write,
+            gb_error,
+            core::ptr::null()
+        );
+    }
+
+    unsafe { gb_init_lcd(gb_ptr as *mut c_void, lcd_draw_line as *const c_void) }
+
+    let mut terminal = terminal().lock();
+    terminal.set_pos(0, 4);
+    print_terminal!(&mut terminal, "Controls:\nW=Up, A=Left, S=Down, D=Right\nQ=Select, E=Start, Space=B, Enter=A");
+    drop(terminal);
+
+    let keyboard_buffer = keyboard_buffer();
+    let joypad_ptr = unsafe { gb_get_joypad_ptr(gb_ptr as *mut c_void) };
+
+    loop {
+        let time = system_time();
+        unsafe { gb_run_frame(gb_ptr as *mut c_void) }
+        let time_taken = system_time() - time;
+
+        pit::wait(MS_PER_FRAME.saturating_sub(time_taken));
+
+        for _ in 0..3 {
+            let Some(key_event) = keyboard_buffer.pop_key_event() else {
+                break;
+            };
+
+            let Some(key) = key_event.ascii() else {
+                continue;
+            };
+
+            let mapped_button = match key {
+                'w' | 'W' => JoypadButton::Up,
+                'a' | 'A' => JoypadButton::Left,
+                's' | 'S' => JoypadButton::Down,
+                'd' | 'D' => JoypadButton::Right,
+                'q' | 'Q' => JoypadButton::Select,
+                'e' | 'E' => JoypadButton::Start,
+                // Space = B, Enter = A
+                '\n' | '\r' => JoypadButton::A,
+                ' ' => JoypadButton::B,
+                _ => continue,
+            };
+
+            // Update the joypad
+            if key_event.pressed() {
+                unsafe { *joypad_ptr &= !(mapped_button as u8) }
+            } else {
+                unsafe { *joypad_ptr |= mapped_button as u8 }
+            }
+        }
+    }
 }

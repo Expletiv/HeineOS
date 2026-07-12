@@ -208,7 +208,6 @@ impl Framebuffer {
 
         let pixel_data = bitmap.pixel_data();
 
-
         for row in 0..target_height {
             for col in 0..target_width {
                 // BMP coordinates are stored bottom-up

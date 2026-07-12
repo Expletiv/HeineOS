@@ -427,8 +427,6 @@ impl ISR for KeyboardISR {
     /// Keyboard interrupt handler.
     /// This function reads the next byte from the keyboard and decodes it into a key event.
     fn trigger(&self) {
-        info!("Keyboard interrupt handler triggered");
-
         KEYBOARD.lock().try_read_next_byte().map(|event| {
             keyboard_buffer().push_key_event(event);
         });
