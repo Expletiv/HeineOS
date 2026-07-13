@@ -9,7 +9,7 @@ use alloc::vec;
 use alloc::vec::Vec;
 use core::ffi::{c_char, c_int, c_size_t, c_void, CStr};
 use log::{error, info};
-use crate::device::key::KeyEventQueue;
+use crate::device::key::{KeyEventQueue, Scancode};
 use crate::device::keyboard::keyboard_buffer;
 use crate::device::pit;
 use crate::device::pit::system_time;
@@ -135,6 +135,12 @@ const MS_PER_FRAME: usize = 1000 / TARGET_FRAME_RATE;
 /// The original Game Boy screen resolution (160x144 pixels).
 const GB_SCREEN_RES: (usize, usize) = (160, 144);
 
+const X_OFFSET: usize = 192;
+
+const Y_OFFSET: usize = 96;
+
+const SCALE: usize = 3;
+
 /// The color palette used for rendering.
 /// The Game Boy supports 4 shades of gray, represented as 32-bit ARGB colors in this array.
 static PALETTE: &[u32] = &[
@@ -176,23 +182,17 @@ unsafe extern "C" fn gb_cart_ram_write(_gb: *mut c_void, addr: u32, val: u8) {
 /// The other bits are used for Game Boy Color emulation, but are ignored in this implementation.
 unsafe extern "C" fn lcd_draw_line(_gb: *mut c_void, pixels: *const u8, line: u8) {
     let mut framebuffer = framebuffer().lock();
-
-    let x_offset = 256;
-    let y_offset = 128;
-
-    let scale = 2;
-
     let pixels = core::slice::from_raw_parts(pixels, GB_SCREEN_RES.0);
 
     for (i, pixel) in pixels.iter().enumerate() {
         let colour_index = *pixel & 0x3;
         let colour = PALETTE[colour_index as usize];
 
-        for x_pos in 0..scale {
-            let x = i * scale + x_pos + x_offset;
-            for y_pos in 0..scale {
-                let y = line as usize * scale + y_pos + y_offset;
-                framebuffer.draw_pixel_unchecked(x, y, colour);
+        for x_pos in 0..SCALE {
+            let x = i * SCALE + x_pos + X_OFFSET;
+            for y_pos in 0..SCALE {
+                let y = line as usize * SCALE + y_pos + Y_OFFSET;
+                unsafe { framebuffer.draw_pixel_unchecked(x, y, colour) }
             }
         }
     }
@@ -255,20 +255,19 @@ pub fn play(rom_path: &str) {
                 break;
             };
 
-            let Some(key) = key_event.ascii() else {
+            let Some(code) = key_event.scancode() else {
                 continue;
             };
 
-            let mapped_button = match key {
-                'w' | 'W' => JoypadButton::Up,
-                'a' | 'A' => JoypadButton::Left,
-                's' | 'S' => JoypadButton::Down,
-                'd' | 'D' => JoypadButton::Right,
-                'q' | 'Q' => JoypadButton::Select,
-                'e' | 'E' => JoypadButton::Start,
-                // Space = B, Enter = A
-                '\n' | '\r' => JoypadButton::A,
-                ' ' => JoypadButton::B,
+            let mapped_button = match code {
+                Scancode::W => JoypadButton::Up,
+                Scancode::A => JoypadButton::Left,
+                Scancode::S => JoypadButton::Down,
+                Scancode::D => JoypadButton::Right,
+                Scancode::Q => JoypadButton::Select,
+                Scancode::E => JoypadButton::Start,
+                Scancode::Enter => JoypadButton::A,
+                Scancode::Space => JoypadButton::B,
                 _ => continue,
             };
 
