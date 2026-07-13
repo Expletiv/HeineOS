@@ -74,12 +74,14 @@ fn demo_memory_leak() {
     dump_free_list();
 
     let offset_block = Box::new([0u8; 16]);
+    log::info!("Offset block allocated at: {:p}", offset_block);
 
     log::info!("--- 2. AFTER OFFSET ALLOCATION ---");
     dump_free_list();
 
     let aligned_struct = Box::new(HighlyAlignedStruct { data: [0; 16] });
-
+    log::info!("Aligned struct allocated at: {:p}", aligned_struct);
+    
     log::info!("--- 3. AFTER ALIGNED ALLOCATION ---");
     dump_free_list();
 

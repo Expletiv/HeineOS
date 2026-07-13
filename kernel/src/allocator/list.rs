@@ -7,7 +7,6 @@
  */
 
 use alloc::alloc::{GlobalAlloc, Layout};
-use log::info;
 use crate::allocator::global::{align_up, Locked};
 
 /// Header of a free block in the list allocator.
@@ -66,18 +65,56 @@ impl LinkedListAllocator {
         self.heap_start = heap_start;
         self.heap_end = heap_start + heap_size;
 
-        info!("List allocator initialized: 0x{:x} - 0x{:x} (Size: {} bytes)", heap_start, heap_start + heap_size, heap_size);
+        log::info!("List allocator initialized: 0x{:x} - 0x{:x} (Size: {} bytes)", heap_start, heap_start + heap_size, heap_size);
     }
 
-    /// Adds the given free memory block 'addr' to the front of the free list.
+    /// Sorts the given free memory block 'addr' into the list. Merges with adjacent blocks if possible.
     unsafe fn add_free_block(&mut self, addr: usize, size: usize) {
-        let mut node = ListNode::new(size);
-        node.next = self.head.next.take();
-        let node_ptr = addr as *mut ListNode;
+        let node = ListNode::new(size);
+        let mut node_ptr = addr as *mut ListNode;
 
-        unsafe {
-            node_ptr.write(node);
-            self.head.next = Some(&mut *node_ptr)
+        unsafe { node_ptr.write(node); }
+
+        let mut new_node = unsafe { &mut *node_ptr };
+        let mut current = &mut self.head;
+
+        // The new node will already have a valid next pointer once the while loop is finished
+        while let Some(ref mut next) = current.next {
+            // check for overlapping blocks
+            if new_node.start_addr() >= next.start_addr() && new_node.start_addr() < next.end_addr() {
+                panic!("Double free or overlapping block detected at {:#x}", new_node.start_addr());
+            }
+
+            // new node comes after current and before next
+            if new_node.end_addr() < next.start_addr() {
+                new_node.next = current.next.take();
+                break;
+            }
+
+            // merge the new node with the next node
+            if new_node.end_addr() == next.start_addr() {
+                Self::merge_blocks(new_node, next);
+                break;
+            }
+
+            // the new node comes after the next node, continue searching
+            current = current.next.as_mut().unwrap();
+        }
+
+        // Insert the new node after current or merge it with current (only if current != head)
+        if current.size > 0 && current.end_addr() == new_node.start_addr() {
+            Self::merge_blocks(current, new_node);
+        } else {
+            current.next = Some(new_node);
+        }
+    }
+
+    unsafe fn merge_blocks(prev: &mut ListNode, next: &mut ListNode) {
+        if prev.end_addr() == next.start_addr() {
+            prev.size += (*next).size;
+            prev.next = (*next).next.take();
+        } else {
+            panic!("Cannot merge blocks at {:#x} and {:#x}", prev.end_addr(), next.start_addr());
         }
     }
 
