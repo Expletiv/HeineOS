@@ -6,7 +6,7 @@
  * License: GPLv3
  */
 use core::cmp::max;
-use crate::device::font_8x8;
+use crate::device::{font_8x8};
 use crate::library::bitmap::Bitmap;
 use crate::multiboot;
 
@@ -41,6 +41,16 @@ pub const BLUE: u32 = color(0, 0, 170);
 pub const MAGENTA: u32 = color(170, 0, 170);
 pub const CYAN: u32 = color(0, 170, 170);
 pub const WHITE: u32 = color(170, 170, 170);
+
+#[cfg(feature = "unifont")]
+pub const CHAR_WIDTH: usize = 8;
+#[cfg(not(feature = "unifont"))]
+pub const CHAR_WIDTH: usize = font_8x8::CHAR_WIDTH;
+
+#[cfg(feature = "unifont")]
+pub const CHAR_HEIGHT: usize = 16;
+#[cfg(not(feature = "unifont"))]
+pub const CHAR_HEIGHT: usize = font_8x8::CHAR_HEIGHT;
 
 impl Framebuffer {
     /// Create a new Framebuffer instance.
@@ -108,6 +118,7 @@ impl Framebuffer {
         unsafe { buffer.add(offset).cast::<u32>().write_volatile(color); }
     }
 
+    #[cfg(not(feature = "unifont"))]
     /// Get the pixel data for a character from the font data.
     fn get_char_pixels(c: char) -> &'static [u8] {
         let char_mem_size = (font_8x8::CHAR_WIDTH + (8 >> 1)) / 8 * font_8x8::CHAR_HEIGHT;
@@ -120,14 +131,23 @@ impl Framebuffer {
     /// Draw a single character at the specified (x, y) coordinates with the given foreground and background colors.
     /// If the character does not fit fully within the framebuffer, it is not drawn.
     pub fn draw_char(&mut self, c: char, x: usize, y: usize, fg_color: u32, bg_color: u32) {
-        let char_width  = font_8x8::CHAR_WIDTH;
-        let char_height = font_8x8::CHAR_HEIGHT;
+        let char_width  = CHAR_WIDTH;
+        let char_height = CHAR_HEIGHT;
         if x + char_width > self.width || y + char_height > self.height {
             return;
         }
 
         let width_byte = (char_width + 7) / 8;
+
+        #[cfg(not(feature = "unifont"))]
         let char_pixels = Framebuffer::get_char_pixels(c);
+
+        #[cfg(feature = "unifont")]
+        // We do not support full width glyphs
+        let Some(unifont::Glyph::Halfwidth(char_pixels)) = unifont::get_glyph(c) else {
+            return;
+        };
+
         let mut pixel_index = 0;
 
         for y_offset in 0..char_height {
@@ -158,14 +178,14 @@ impl Framebuffer {
 
         for c in str.chars() {
             self.draw_char(c, x, y, fg_color, bg_color);
-            x += font_8x8::CHAR_WIDTH;
+            x += CHAR_WIDTH;
         }
     }
 
     /// Scroll the framebuffer content up by the specified number of lines.
     /// The freed space at the bottom is cleared to black.
     pub fn scroll_up(&mut self, lines: usize) {
-        let line_size = self.pitch * font_8x8::CHAR_HEIGHT;
+        let line_size = self.pitch * CHAR_HEIGHT;
         let scroll_size = line_size * lines;
         let total_size = self.pitch * self.height;
 

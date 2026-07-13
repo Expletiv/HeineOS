@@ -236,7 +236,7 @@ pub fn play(rom_path: &str) {
     unsafe { gb_init_lcd(gb_ptr as *mut c_void, lcd_draw_line as *const c_void) }
 
     let mut terminal = terminal().lock();
-    terminal.set_pos(0, 4);
+    terminal.set_pos(0, 2);
     print_terminal!(&mut terminal, "Controls:\nW=Up, A=Left, S=Down, D=Right\nQ=Select, E=Start, Space=B, Enter=A");
     drop(terminal);
 
