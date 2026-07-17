@@ -124,6 +124,12 @@ impl IntVectors {
         });
     }
 
+    pub fn register_dynamic(vector: usize, isr: Box<dyn ISR>) {
+        cpu::without_interrupts(|| {
+            INT_VECTORS.lock().map.get_mut(vector).unwrap().replace(isr);
+        });
+    }
+
     /// Check if an ISR is registered for `vector`. If so, call it.
     pub fn report(&self, vector: u8) -> bool {
         let isr = self.map.get(vector as usize).unwrap();

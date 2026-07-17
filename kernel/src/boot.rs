@@ -27,7 +27,7 @@ use uefi::mem::memory_map::MemoryMapOwned;
 use crate::allocator::global::init_allocator;
 use crate::device::framebuffer::Framebuffer;
 use crate::device::serial::COM1;
-use crate::device::{cpu, keyboard, pic, pit, terminal};
+use crate::device::{cpu, keyboard, pic, pit, rtl8139, terminal};
 use crate::filesystem::tarfs;
 use crate::interrupt::dispatcher;
 use crate::logger::Logger;
@@ -124,6 +124,9 @@ pub extern "C" fn main(multiboot_magic: u32, multiboot: &multiboot::BootInfo) ->
 
     info!("Initializing keyboard");
     keyboard::plugin();
+
+    info!("Initializing RTL8139");
+    rtl8139::plugin();
 
     info!("Enabling interrupts");
     cpu::enable_int();
