@@ -131,7 +131,7 @@ pub extern "C" fn main(multiboot_magic: u32, multiboot: &multiboot::BootInfo) ->
     info!("Enabling interrupts");
     cpu::enable_int();
     
-    demo::lesson6::peanut_gb::play("roms/pokemon-red.gb");
+    demo::lesson7::rtl8139_demo();
 
     // Endless loop, as we cannot return from main().
     loop {}

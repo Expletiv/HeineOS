@@ -4,10 +4,12 @@
  * Author: Fabian Ruhland, Heinrich Heine University Duesseldorf, 2026-04-02
  * License: GPLv3
  */
-use crate::device::cpu::IoPort;
-use crate::device::pci::{pci_bus, Command};
+use crate::device::pci::{pci_bus};
+use crate::device::{pit, rtl8139};
 use crate::device::terminal::terminal;
 use crate::library::input;
+use crate::thread::scheduler::scheduler;
+use crate::thread::thread::Thread;
 
 pub fn print_pci_devices() {
     terminal().lock().clear();
@@ -25,63 +27,59 @@ pub fn rtl8139_demo() {
     terminal().lock().clear();
     println!("RTL8139 Demo:\n");
 
-    let rtl8139 = pci_bus().iter().find(|device| {
-        device.read_vendor_id() == 0x10ec && device.read_device_id() == 0x8139
-    });
+    let receive_loop = Thread::new(test_receive_loop);
+    let send_loop = Thread::new(test_send_loop);
+    scheduler().ready(receive_loop);
+    scheduler().ready(send_loop);
+    scheduler().schedule();
+}
 
-    if let Some(rtl8139) = rtl8139 {
-        println!("Found RTL8139 device!");
+fn test_receive_loop() {
+    println!("Waiting for packets...");
 
-        // Read the I/O base address from BAR0
-        let bar0 = rtl8139.read_bar(0);
-        if bar0 & 0x1 == 0 {
-            // The address in BAR0 is a 32-bit memory-mapped I/O address.
-            // This means that the registers are accessed via memory addresses instead of I/O ports.
-            // The card emulated by QEMU uses 16-bit I/O ports,
-            // so this code path is never executed in QEMU and is just here as a showcase.
-            let mmio_base = bar0 & 0xfffffff0;
-            println!("RTL8139 MMIO base address: 0x{:x}", mmio_base);
+    loop {
+        if let Some(frame) = rtl8139::receive_packet() {
 
-            // Enable MMIO access by setting the correct command bits in the PCI command register
-            rtl8139.write_command(rtl8139.read_command() | Command::MemEnable as u16);
+            let dest = &frame.data[0..6];
+            let src = &frame.data[6..12];
+            let ethertype = (frame.data[12] as u16) << 8 | (frame.data[13] as u16);
 
-            // Read mac address from the RTL8139 registers -> Always at offset 0x00-0x05
-            // MMIO access is done via volatile reads to ensure the compiler does not optimize them away
-            let mac_address_ptr = (mmio_base) as *const u8;
-            let mac_address = unsafe {[
-                mac_address_ptr.add(0).read_volatile(),
-                mac_address_ptr.add(1).read_volatile(),
-                mac_address_ptr.add(2).read_volatile(),
-                mac_address_ptr.add(3).read_volatile(),
-                mac_address_ptr.add(4).read_volatile(),
-                mac_address_ptr.add(5).read_volatile()
-            ]};
-            println!("MAC address: {:x?}", mac_address);
-        } else {
-            // The address in BAR0 is a 16-bit I/O port address
-            let io_base = (bar0 & 0xfffc) as u16;
-            println!("RTL8139 I/O base address: 0x{:x}", io_base);
-
-            // Enable I/O access AND PCI Bus Mastering (DMA)
-            rtl8139.write_command(rtl8139.read_command() | Command::IoEnable as u16 | Command::BusMasterEnable as u16);
-
-            // Read mac address from the RTL8139 registers -> Always at offset 0x00-0x05
-            let mac_address = unsafe {[
-                IoPort::new(io_base + 0).inb(),
-                IoPort::new(io_base + 1).inb(),
-                IoPort::new(io_base + 2).inb(),
-                IoPort::new(io_base + 3).inb(),
-                IoPort::new(io_base + 4).inb(),
-                IoPort::new(io_base + 5).inb()
-            ]};
-            println!("MAC address: {:x?}", mac_address);
-
-
+            println!(
+                "Packet [{} bytes] | Dest: {:02X}:{:02X}:{:02X}:{:02X}:{:02X}:{:02X} | Src: {:02X}:{:02X}:{:02X}:{:02X}:{:02X}:{:02X} | Type: 0x{:04X}",
+                frame.length,
+                dest[0], dest[1], dest[2], dest[3], dest[4], dest[5],
+                src[0], src[1], src[2], src[3], src[4], src[5],
+                ethertype
+            );
         }
-    } else {
-        println!("No RTL8139 device found!");
-    }
 
-    println!("\nPress 'Enter' to exit...");
-    input::wait_for_return();
+        pit::wait(100);
+    }
+}
+
+fn test_send_loop() {
+    loop {
+        send_test_packet();
+        pit::wait(1000);
+    }
+}
+
+fn send_test_packet() {
+    let mut frame = [0u8; 64];
+
+    // Destination MAC (Broadcast)
+    frame[0..6].copy_from_slice(&[0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF]);
+
+    // Source MAC (52:54:00:12:34:56)
+    frame[6..12].copy_from_slice(&[0x52, 0x54, 0x00, 0x12, 0x34, 0x56]);
+
+    // EtherType (0x88B5 is reserved for local experimental use)
+    frame[12] = 0x88;
+    frame[13] = 0xB5;
+
+    let payload = b"Hello from HeineOS!";
+    frame[14..(14 + payload.len())].copy_from_slice(payload);
+
+    println!("Sending test packet...");
+    rtl8139::send_packet(&frame);
 }
