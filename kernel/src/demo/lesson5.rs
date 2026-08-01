@@ -35,7 +35,7 @@ fn thread_entry() {
             _ => {}
         }
 
-        terminal.set_pos(8, 8 + tid * 2);
+        terminal.set_pos(8, 8 + (tid % 3) * 2);
 
         print_terminal!(&mut terminal, "Thread [{}]: {}", tid, counter);
         drop(terminal);

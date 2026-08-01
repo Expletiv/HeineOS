@@ -175,11 +175,11 @@ impl LinkedListAllocator {
 
     /// Dump the free list for debugging purposes.
     pub fn dump_free_list(&self) {
-        log::info!("Free memory blocks:");
+        println!("Free memory blocks:");
         let mut current = &self.head;
 
         while let Some(ref block) = current.next {
-            log::info!("  {:#x} - {:#x}", block.start_addr(), block.end_addr());
+            println!("  {:#x} - {:#x}", block.start_addr(), block.end_addr());
 
             current = block;
         }

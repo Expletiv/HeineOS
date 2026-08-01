@@ -1,11 +1,12 @@
 use crate::demo::{lesson1, lesson2, lesson4, lesson5, lesson6, lesson7};
-use crate::device::terminal::terminal;
+use crate::device::terminal::{framebuffer, terminal};
+use crate::library::bitmap::Bitmap;
 use crate::library::input;
 use crate::library::input::read_char;
 use crate::thread::scheduler::scheduler;
 use crate::thread::thread::Thread;
 
-pub fn select_demo() {
+pub fn demo_menu() {
     let scheduler = scheduler();
     let demo_thread = Thread::new(demo_loop);
     scheduler.ready(demo_thread);
@@ -13,8 +14,10 @@ pub fn select_demo() {
 }
 
 fn demo_loop() {
+
     loop {
         terminal().lock().clear();
+        println!("Demo Menu:\n");
 
         println!("1. Text Demo");
         println!("2. Keyboard Demo");
@@ -25,6 +28,15 @@ fn demo_loop() {
         println!("7. Peanut GB Demo");
         println!("8. Print PCI Devices");
         println!("9. RTL8139 Demo");
+
+        let bitmap = Bitmap::read_from_file("heine.bmp");
+        match bitmap {
+            Ok(Some(bitmap)) => {
+                framebuffer().lock().draw_bitmap(&bitmap, 280, 164);
+            },
+            Ok(None) => println!("Invalid or unsupported BMP file"),
+            Err(_) => println!("Error reading BMP file"),
+        }
 
         let c = read_char();
 

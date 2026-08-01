@@ -27,8 +27,6 @@ struct MyStruct {
 /// A simple heap demo, allocating and freeing memory on the heap.
 /// The allocator state is dumped before and after each operation.
 pub fn heap_demo() {
-    demo_memory_leak();
-
     let numbers = vec![1, 2, 3, 4, 5];
     let mut squared = vec![];
 

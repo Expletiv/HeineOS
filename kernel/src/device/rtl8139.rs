@@ -411,7 +411,7 @@ impl Rtl8139 {
             let tsd_port = self.io_base + REG_TSD0 + (desc as u16 * 4);
             unsafe { IoPort::new(tsd_port).outdw(frame.length as u32) };
 
-            info!("Popped packet from queue and sent on hardware desc {}", desc);
+            // info!("Popped packet from queue and sent on hardware desc {}", desc);
 
             // Move to the next descriptor
             tx.current_tx_descriptor = (tx.current_tx_descriptor + 1) % 4;
@@ -447,7 +447,7 @@ impl ISR for Rtl8139ISR {
         let status = rtl8139.read_interrupt_status();
         let flags = InterruptReg::from_bits_truncate(status);
 
-        info!("RTL8139 Interrupt! Status: {:?}", flags);
+        // info!("RTL8139 Interrupt! Status: {:?}", flags);
 
         if flags.contains(InterruptReg::RECEIVE_OK) || flags.contains(InterruptReg::RX_OVERFLOW) {
             rtl8139.process_rx_buffer();
