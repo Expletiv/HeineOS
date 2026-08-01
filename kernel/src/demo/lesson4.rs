@@ -5,7 +5,6 @@
  *         Fabian Ruhland, Heinrich Heine University Duesseldorf, 2026-01-15
  * License: GPLv3
  */
-use log::info;
 use crate::coroutine::coroutine::Coroutine;
 use crate::device::terminal::terminal;
 use crate::thread::scheduler::scheduler;
@@ -53,16 +52,14 @@ fn coroutine_loop(coroutine: &mut Coroutine) {
 pub fn thread_demo() {
     println!("Thread Demo:");
 
-    let mut a = Thread::new(thread_entry);
-    let mut b = Thread::new(thread_entry);
-    let mut c = Thread::new(thread_entry);
+    let a = Thread::new(thread_entry);
+    let b = Thread::new(thread_entry);
+    let c = Thread::new(thread_entry);
 
     let scheduler = scheduler();
     scheduler.ready(a);
     scheduler.ready(b);
     scheduler.ready(c);
-
-    scheduler.schedule();
 }
 
 /// The function executed by each thread in the thread demo.

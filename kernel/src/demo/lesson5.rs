@@ -1,4 +1,3 @@
-use crate::device::pit;
 use crate::device::terminal::terminal;
 use crate::thread::scheduler::scheduler;
 use crate::thread::thread::Thread;
@@ -17,8 +16,6 @@ pub fn thread_demo() {
     scheduler.ready(a);
     scheduler.ready(b);
     scheduler.ready(c);
-
-    scheduler.schedule();
 }
 
 /// The function executed by each thread in the thread demo.
@@ -31,10 +28,10 @@ fn thread_entry() {
         let mut terminal = terminal().lock();
         let tid = scheduler().get_active_tid();
 
-        match (tid, counter) {
-            (1, 501) => { return; }
-            (2, 1001) => { return; }
-            (3, 1501) => { return; }
+        match (tid % 3, counter) {
+            (0, 501) => { return; }
+            (1, 1001) => { return; }
+            (2, 1501) => { return; }
             _ => {}
         }
 

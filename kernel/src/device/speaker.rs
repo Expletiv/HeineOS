@@ -8,6 +8,7 @@
  *         Fabian Ruhland, Heinrich Heine University Duesseldorf, 2026-03-18
  * License: GPLv3
  */
+use log::warn;
 use crate::device::cpu::IoPort;
 use crate::device::pit;
 use crate::library::spinlock::Spinlock;
@@ -141,7 +142,10 @@ impl Speaker {
 /// Plays the Tetris theme using the PC speaker.
 /// Kévin Rapaille, August 2013, https://gist.github.com/XeeX/6220067
 pub fn tetris() {
-    let mut speaker = SPEAKER.lock();
+    let Some(mut speaker) = SPEAKER.try_lock() else {
+        warn!("Speaker is already in use, skipping Tetris theme");
+        return;
+    };
 
     speaker.play(658, 125);
     speaker.play(1320, 500);

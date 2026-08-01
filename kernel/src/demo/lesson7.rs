@@ -31,7 +31,6 @@ pub fn rtl8139_demo() {
     let send_loop = Thread::new(test_send_loop);
     scheduler().ready(receive_loop);
     scheduler().ready(send_loop);
-    scheduler().schedule();
 }
 
 fn test_receive_loop() {
@@ -45,7 +44,7 @@ fn test_receive_loop() {
             let ethertype = (frame.data[12] as u16) << 8 | (frame.data[13] as u16);
 
             println!(
-                "Packet [{} bytes] | Dest: {:02X}:{:02X}:{:02X}:{:02X}:{:02X}:{:02X} | Src: {:02X}:{:02X}:{:02X}:{:02X}:{:02X}:{:02X} | Type: 0x{:04X}",
+                "Received Packet [{} bytes] | Dest: {:02X}:{:02X}:{:02X}:{:02X}:{:02X}:{:02X} | Src: {:02X}:{:02X}:{:02X}:{:02X}:{:02X}:{:02X} | Type: 0x{:04X}",
                 frame.length,
                 dest[0], dest[1], dest[2], dest[3], dest[4], dest[5],
                 src[0], src[1], src[2], src[3], src[4], src[5],

@@ -15,6 +15,8 @@ use crate::device::key::Scancode;
 use crate::device::speaker;
 use crate::device::speaker::SPEAKER;
 use crate::device::terminal::terminal;
+use crate::thread::scheduler::scheduler;
+use crate::thread::thread::Thread;
 
 struct MyStruct {
     a: u8,
@@ -94,5 +96,7 @@ fn demo_memory_leak() {
 
 /// A demo that plays songs via the PC speaker.
 pub fn speaker_demo() {
-    speaker::tetris();
+    let speaker_thread = Thread::new(speaker::tetris);
+    let scheduler = scheduler();
+    scheduler.ready(speaker_thread);
 }
