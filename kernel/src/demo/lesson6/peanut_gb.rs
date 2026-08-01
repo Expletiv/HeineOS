@@ -237,7 +237,7 @@ pub fn play(rom_path: &str) {
 
     let mut terminal = terminal().lock();
     terminal.set_pos(0, 2);
-    print_terminal!(&mut terminal, "Controls:\nW=Up, A=Left, S=Down, D=Right\nQ=Select, E=Start, Space=B, Enter=A");
+    println_terminal!(&mut terminal, "Controls:\nW=Up, A=Left, S=Down, D=Right\nQ=Select, E=Start, Space=B, Enter=A");
     drop(terminal);
 
     let keyboard_buffer = keyboard_buffer();

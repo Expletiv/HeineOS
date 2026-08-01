@@ -4,7 +4,6 @@ use crate::thread::thread::Thread;
 
 /// A demo function showcasing threads.
 /// It starts three threads, each incrementing a counter and printing it to the terminal in an endless loop.
-/// The first thread also kills the other two threads after a certain number of iterations and finally exits itself, ending the demo.
 pub fn thread_demo() {
     println!("Thread Demo:");
 
@@ -19,8 +18,7 @@ pub fn thread_demo() {
 }
 
 /// The function executed by each thread in the thread demo.
-/// It increments a counter and prints it to the terminal in an endless loop,
-/// yielding the CPU to the next thread after each print.
+/// It increments a counter and prints it to the terminal.
 fn thread_entry() {
     let mut counter = 1;
 

@@ -151,7 +151,7 @@ impl Pic {
 
         unsafe {
             let current = port.inb();
-            port.outb(current | !mask);
+            port.outb(current | mask);
         }
     }
 

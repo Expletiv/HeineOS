@@ -215,13 +215,13 @@ impl Framebuffer {
 
         // Clip the bitmap to the framebuffer dimensions
         let target_width = if x + bmp_width > self.width {
-            max(self.width - x, 0)
+            self.width.saturating_sub(x)
         } else {
             bmp_width
         };
 
         let target_height = if y + bmp_height > self.height {
-            max(self.height - y, 0)
+            self.height.saturating_sub(y)
         } else {
             bmp_height
         };

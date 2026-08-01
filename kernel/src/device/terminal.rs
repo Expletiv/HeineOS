@@ -208,8 +208,8 @@ macro_rules! print_terminal {
 /// instead of locking the global terminal instance. This is useful for performing multiple writes
 /// without locking and unlocking the CGA instance each time.
 macro_rules! println_terminal {
-    ($cga:expr, $fmt:expr) => (print_cga!($cga, concat!($fmt, "\n")));
-    ($cga:expr, $fmt:expr, $($arg:tt)*) => (print_cga!($cga, concat!($fmt, "\n"), $($arg)*));
+    ($cga:expr, $fmt:expr) => (print_terminal!($cga, concat!($fmt, "\n")));
+    ($cga:expr, $fmt:expr, $($arg:tt)*) => (print_terminal!($cga, concat!($fmt, "\n"), $($arg)*));
 }
 
 /// Helper function for the print macros.

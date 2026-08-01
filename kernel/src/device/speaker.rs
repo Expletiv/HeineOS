@@ -120,16 +120,6 @@ impl Speaker {
         }
     }
 
-    /// Return the current value of the PIT counter (16-bit).
-    /// Used by `delay()` to check if the counter has reached 0 or has been reloaded.
-    fn read_counter(&mut self) -> u16 {
-        unsafe {
-            // Send a latch command before reading the counter
-            self.pit_ctrl_port.outb(0x00);
-            self.pit_data0_port.inb() as u16 | (self.pit_data0_port.inb() as u16) << 8
-        }
-    }
-
     /// Wait for a given amount of time in milliseconds using counter 0 of the PIT.
     /// Mode 2 (rate generator) with a reload value of 1193 (0x04a9) is used.
     /// This means that the counter will count down from 1193 to 0 and then reload itself.
@@ -268,7 +258,10 @@ pub fn tetris() {
 /// Plays part of the song "Aerodynamic" by Daft Punk using the PC speaker.
 /// https://www.kirrus.co.uk/2010/09/linux-beep-music
 pub fn aerodynamic() {
-    let mut speaker = SPEAKER.lock();
+    let Some(mut speaker) = SPEAKER.try_lock() else {
+        warn!("Speaker is already in use, skipping Aerodynamic");
+        return;
+    };
 
     speaker.play(587, 122);
     speaker.play(370, 122);

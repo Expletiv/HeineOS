@@ -163,6 +163,11 @@ impl Keyboard {
         if ctrl_port & KeyboardStatus::OUTPUT_BUFFER_FULL.bits() != 0 {
             let code = unsafe { self.data_port.inb() };
 
+            // Only decode if the byte comes from the keyboard
+            if ctrl_port & KeyboardStatus::AUXILIARY_DEVICE.bits() != 0 {
+                return None;
+            }
+            
             if self.decode_byte(code) {
                 return Some(self.gather);
             }

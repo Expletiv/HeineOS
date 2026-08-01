@@ -86,6 +86,19 @@ impl ComPort {
 
     /// Write a single byte to the COM port.
     pub fn write_byte(&mut self, byte: u8) {
+        // If the character to write is a newline character, write an additional carriage return
+        if byte == b'\n' {
+            self.write_byte(b'\r');
+        }
+
+        // Wait until the serial port is ready to accept more data
+        loop {
+            let status = unsafe { self.line_status_port.inb() };
+            if status & LineStatus::READY_TO_WRITE.bits() != 0 {
+                break;
+            }
+        }
+
         unsafe { self.data_port.outb(byte); }
     }
 }
