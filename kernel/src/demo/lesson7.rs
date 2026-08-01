@@ -4,12 +4,14 @@
  * Author: Fabian Ruhland, Heinrich Heine University Duesseldorf, 2026-04-02
  * License: GPLv3
  */
+use core::sync::atomic::{AtomicBool, Ordering};
 use crate::device::pci::{pci_bus};
 use crate::device::{pit, rtl8139};
 use crate::device::terminal::terminal;
-use crate::library::input;
 use crate::thread::scheduler::scheduler;
 use crate::thread::thread::Thread;
+
+pub static DEMO_RUNNING: AtomicBool = AtomicBool::new(false);
 
 pub fn print_pci_devices() {
     terminal().lock().clear();
@@ -18,9 +20,6 @@ pub fn print_pci_devices() {
     for device in pci_bus().iter() {
         println!("Found PCI device {:04x}:{:04x}", device.read_vendor_id(), device.read_device_id());
     }
-
-    println!("\nPress 'Enter' to exit...");
-    input::wait_for_return();
 }
 
 pub fn rtl8139_demo() {
@@ -29,6 +28,8 @@ pub fn rtl8139_demo() {
 
     let receive_loop = Thread::new(test_receive_loop);
     let send_loop = Thread::new(test_send_loop);
+
+    DEMO_RUNNING.store(true, Ordering::Relaxed);
     scheduler().ready(receive_loop);
     scheduler().ready(send_loop);
 }
@@ -36,7 +37,7 @@ pub fn rtl8139_demo() {
 fn test_receive_loop() {
     println!("Waiting for packets...");
 
-    loop {
+    while DEMO_RUNNING.load(Ordering::Relaxed) {
         if let Some(frame) = rtl8139::receive_packet() {
 
             let dest = &frame.data[0..6];
@@ -57,7 +58,7 @@ fn test_receive_loop() {
 }
 
 fn test_send_loop() {
-    loop {
+    while DEMO_RUNNING.load(Ordering::Relaxed) {
         send_test_packet();
         pit::wait(1000);
     }

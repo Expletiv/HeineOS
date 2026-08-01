@@ -1,3 +1,4 @@
+use core::sync::atomic::Ordering;
 use crate::demo::{lesson1, lesson2, lesson4, lesson5, lesson6, lesson7};
 use crate::device::terminal::{framebuffer, terminal};
 use crate::library::bitmap::Bitmap;
@@ -59,6 +60,10 @@ fn demo_loop() {
 
                 println!("\nPress 'Enter' to return to the demo selector.");
                 input::wait_for_return();
+
+                if c == '9' {
+                    lesson7::DEMO_RUNNING.store(false, Ordering::Relaxed);
+                }
             }
             _ => {
                 continue;
