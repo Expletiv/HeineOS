@@ -15,6 +15,7 @@ use crate::device::key::Scancode;
 use crate::device::speaker;
 use crate::device::speaker::SPEAKER;
 use crate::device::terminal::terminal;
+use crate::library::input;
 use crate::thread::scheduler::scheduler;
 use crate::thread::thread::Thread;
 
@@ -94,7 +95,33 @@ fn demo_memory_leak() {
 
 /// A demo that plays songs via the PC speaker.
 pub fn speaker_demo() {
-    let speaker_thread = Thread::new(speaker::tetris);
+    println!("Speaker Demo: Choose a song\n");
+
+    if SPEAKER.is_locked() {
+        println!("A song is currently playing!");
+        return;
+    }
+
+    println!("1. Tetris Theme");
+    println!("2. Aerodynamic\n");
+
+    println!("Enter '1' or '2' on the keyboard.");
+
+    let speaker_thread = Thread::new(select_song());
     let scheduler = scheduler();
     scheduler.ready(speaker_thread);
+}
+
+fn select_song() -> fn() {
+    loop {
+        let c = input::read_char();
+
+        match c {
+            '1' => return speaker::tetris,
+            '2' => return speaker::aerodynamic,
+            _ => {
+                continue;
+            }
+        };
+    }
 }
