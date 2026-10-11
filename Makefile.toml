@@ -31,6 +31,7 @@ args = [
     "-bios", "RELEASEX64_OVMF.fd",
     "-boot", "d",
     "-vga", "std",
+    "-display", "cocoa,zoom-to-fit=on",
     "-rtc", "base=localtime",
     "-serial", "stdio",
 
@@ -41,9 +42,14 @@ args = [
     # Audio configuration (Using pulse audio for Linux)
     "-audiodev", "id=audio0,driver=${QEMU_AUDIO_DEVICE}",
 
-    # Network configuration
-    "-nic", "model=rtl8139,id=rtl8139,hostfwd=udp::1797-:1797,hostfwd=tcp::1797-:1797",
-    "-object", "filter-dump,id=filter1,netdev=rtl8139,file=rtl8139.dump",
+    # Network configuration (vmnet)
+    "-netdev", "vmnet-host,id=net0,start-address=10.0.0.2,end-address=10.0.0.254,subnet-mask=255.255.255.0,isolated=false",
+    "-device", "rtl8139,netdev=net0,mac=52:54:00:12:34:56",
+    "-object", "filter-dump,id=filter1,netdev=net0,file=rtl8139.dump",
+
+    # Old network config (not used)
+    # "-nic", "model=rtl8139,id=rtl8139,hostfwd=udp::1797-:1797,hostfwd=tcp::1797-:1797",
+    # "-object", "filter-dump,id=filter1,netdev=rtl8139,file=rtl8139.dump",
 ]
 
 # Run HeineOS in QEMU with debugging enabled.

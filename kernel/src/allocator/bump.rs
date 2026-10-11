@@ -38,11 +38,11 @@ impl BumpAllocator {
     /// Dump free memory for debugging purposes.
     pub fn dump_free_list(&self) {
         log::info!("BumpAllocator free region: [{:#x} - {:#x}] ({} bytes free, {} allocations active)",
-        self.next,
-        self.heap_end,
-        self.heap_end - self.next,
-        self.allocations,
-    );
+            self.next,
+            self.heap_end,
+            self.heap_end - self.next,
+            self.allocations,
+        );
     }
 
     /// Allocate memory of the given size and alignment.

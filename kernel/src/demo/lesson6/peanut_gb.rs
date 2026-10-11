@@ -268,6 +268,7 @@ pub fn play(rom_path: &str) {
                 Scancode::E => JoypadButton::Start,
                 Scancode::Enter => JoypadButton::A,
                 Scancode::Space => JoypadButton::B,
+                Scancode::Escape => return,
                 _ => continue,
             };
 

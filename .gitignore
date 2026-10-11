@@ -134,3 +134,7 @@ Cargo.lock
 *.sav
 *.tar
 towbootctl
+
+# Ignore GameBoy ROM files, keep 2048 as demo
+initrd/roms/*.gb
+!initrd/roms/2048.gb
