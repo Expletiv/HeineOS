@@ -8,6 +8,7 @@
 #![no_std]
 #![feature(abi_x86_interrupt)]
 #![feature(unsafe_cell_access)]
+#![feature(c_size_t)]
 
 // Silence compiler warnings.
 // This is done to avoid overwhelming compiler output when building the OS at the beginning.
@@ -17,12 +18,20 @@
 #![allow(unreachable_code)]
 #![allow(unused_variables)]
 
+extern crate alloc;
+
+use core::arch::asm;
+use core::fmt::Write;
 use log::{debug, error, info};
 use uefi::mem::memory_map::MemoryMapOwned;
+use crate::allocator::global::init_allocator;
 use crate::device::framebuffer::Framebuffer;
 use crate::device::serial::COM1;
-use crate::device::terminal;
+use crate::device::{cpu, keyboard, pic, pit, rtl8139, terminal};
+use crate::filesystem::tarfs;
+use crate::interrupt::dispatcher;
 use crate::logger::Logger;
+use crate::thread::scheduler;
 
 #[macro_use]
 mod device;
@@ -30,6 +39,12 @@ mod library;
 mod logger;
 mod multiboot;
 mod demo;
+mod consts;
+mod allocator;
+mod interrupt;
+mod thread;
+mod coroutine;
+mod filesystem;
 
 unsafe extern "C" {
     fn load_gdt();
@@ -81,7 +96,42 @@ pub extern "C" fn main(multiboot_magic: u32, multiboot: &multiboot::BootInfo) ->
     // Load the Global Descriptor Table (code in boot.asm)
     unsafe { load_gdt(); }
 
-    // TODO: Call your demo code here.
+    info!("Kernel initialized successfully!");
+
+    init_allocator(consts::heap_start(), consts::HEAP_SIZE);
+
+    // Find initial ramdisk (initrd) in memory
+    let initrd = multiboot
+        .find_tag::<multiboot::ModuleTag>(multiboot::TagType::Module)
+        .expect("Missing initial ramdisk");
+
+    let tarfs_archive = tar_no_std::TarArchiveRef::new(initrd.as_slice()).expect("Failed to parse initrd");
+
+    info!("Initializing tarfs filesystem");
+    tarfs::init_filesystem(tarfs_archive);
+    
+    info!("Initializing interrupt dispatcher");
+    dispatcher::init_interrupt_dispatcher();
+
+    info!("Initializing IDT");
+    interrupt::idt::idt().load();
+
+    info!("Initializing PIC");
+    pic::PIC.lock().init();
+
+    info!("Initializing PIT");
+    pit::plugin();
+
+    info!("Initializing keyboard");
+    keyboard::plugin();
+
+    info!("Initializing RTL8139");
+    rtl8139::plugin();
+
+    info!("Enabling interrupts");
+    cpu::enable_int();
+    
+    demo::menu::demo_menu();
 
     // Endless loop, as we cannot return from main().
     loop {}
