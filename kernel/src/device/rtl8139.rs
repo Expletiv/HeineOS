@@ -191,7 +191,9 @@ impl RxState {
 struct TxState {
     // Next descriptor to use for transmission (0-3, round robin)
     current_tx_descriptor: u8,
-    tx_buffers: [[u8; 2048]; 4],
+    // On the heap: as an array, debug builds copy it through several stack frames during init
+    // and overflow the 64 KiB boot stack
+    tx_buffers: Vec<[u8; 2048]>,
     tx_queue: PacketQueue,
 }
 
@@ -199,7 +201,7 @@ impl TxState {
     pub fn new() -> TxState {
         TxState {
             current_tx_descriptor: 0,
-            tx_buffers: [[0u8; 2048]; 4],
+            tx_buffers: vec![[0u8; 2048]; 4],
             tx_queue: PacketQueue::new(),
         }
     }
