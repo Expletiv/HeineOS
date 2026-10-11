@@ -1,0 +1,29 @@
+# Tools and shortcuts for HeineOS. The build itself lives in Makefile.toml (cargo-make),
+# the Rust toolchain in rust-toolchain.toml.
+# Other tools come from Homebrew: qemu nasm x86_64-elf-gcc x86_64-elf-binutils gnu-tar wget
+#
+# Building tasks delete loader/kernel.elf first: the "link" task only relinks when the objects
+# are newer than kernel.elf, so switching between debug and release would keep the old kernel.
+
+[tools]
+"aqua:sagiegurari/cargo-make" = "0.37.24"
+
+[tasks.build]
+description = "Build the kernel and the bootable image"
+run = ["rm -f loader/kernel.elf", "cargo make --no-workspace image"]
+
+[tasks.qemu]
+description = "Build (release) and run in QEMU (user mode network, no root)"
+run = ["rm -f loader/kernel.elf", "cargo make --no-workspace --profile production qemu"]
+
+[tasks.qemu-net]
+description = "Build (release) and run in QEMU with a vmnet network (asks for the sudo password)"
+run = ["rm -f loader/kernel.elf", "cargo make --no-workspace --profile production qemu-net"]
+
+[tasks.debug]
+description = "Build and start QEMU paused, waiting for GDB on port 1234"
+run = ["rm -f loader/kernel.elf", "cargo make --no-workspace debug"]
+
+[tasks.clean]
+description = "Remove all build output"
+run = "cargo make --no-workspace clean"
