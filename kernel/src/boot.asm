@@ -10,6 +10,7 @@
 
 ; Export symbols
 [GLOBAL load_gdt]
+[GLOBAL tss_set_rsp0]
 
 ; Kernel constants
 STACK_SIZE equ 0x10000
@@ -134,25 +135,43 @@ clear_bss:
     jne clear_bss
 
     ; Switch stack to our own stack, because the EFI stack may be located inside
-    ; reserved memory and will thus be ignored by our paging implementation.
+    ; reserved memory and will thus be ignored by our paging implementation
     mov rsp, init_stack.end
 
-    ; Call rust function with multiboot2 magic number and address (initially located in eax and ebx)
-    xor rdi, rdi
-    xor rsi, rsi
-    mov edi, eax
-    mov esi, ebx
+    ; Store multiboot2 magic number and address on the stack.
+    ; These need to be passed as parameters to the main() rust function.
+    ; The shift operations are done to clear the upper halfs of rax and rbx.
+    shl rax, 32
+    shr rax, 32
+    push rax
+    shl rbx, 32
+    shr rbx, 32
+    push rbx
+
+    ; Set TSS base address in GDT entry
+    call tss_set_base_address
+
+    ; Set kernel stack in TSS (rsp0)
+    mov rdi, init_stack.end
+    call tss_set_rsp0
+
+    ; Call rust function with multiboot2 magic number and address
+    ; (initially located in eax and ebx, but pushed to stack earlier)
+    pop rsi
+    pop rdi
     call main
 
 load_gdt:
     lgdt [fs:gdt_descriptor]
 
-    ; Clear segment registers, that are not used in 64-bit mode
+    ; Clear segment registers that are not used in 64-bit mode
     mov ax, 0
     mov ds, ax
     mov es, ax
     mov fs, ax
     mov gs, ax
+
+    ; TODO: Load TSS register with the TSS descriptor
 
     ; Load data segment selector into stack segment register
     mov ax, (2 * 0x08)
@@ -164,37 +183,62 @@ load_gdt:
     retfq
 
 load_cs_jmp:
-    ret;
+    ret
+
+; Set TSS base address in TSS descriptor
+tss_set_base_address:
+    ; TODO: Implement this function to set the TSS base address
+    ret
+
+; Set kernel stack (rsp0) in TSS
+; First Parameter -> RDI = Pointer to kernel stack
+tss_set_rsp0:
+    ; TODO: Implement this function to set the rsp0 entry in the TSS
+    ret
+
+; Get the start address of the TSS (return value in rax)
+get_tss_address:
+    mov rax, tss
+    ret
 
 [SECTION .data]
 
 ; Global Descriptor Table (GDT)
 align 8
 gdt:
-	dw  0, 0, 0, 0  ; Null descriptor
+    dw  0, 0, 0, 0  ; Null descriptor
 
-	; Kernel code segment descriptor
-	dw  0xffff      ; 4 GiB (0x100000 * 0x1000 = 4 GiB)
-	dw  0x0000      ; base address = 0
-	dw  0x9a00      ; code read/exec
-	dw  0x00af      ; granularity = 4096, size flag (+5th nibble of limit), Long-Mode
+    ; Kernel code segment descriptor
+    dw  0xffff     ; Limit [00:15] = 0xffff (4 GiB)
+    dw  0x0000     ; Base  [00:15] = 0
+    dw  0x9a00     ; Base  [16:23] = 0; Access Byte = { Code Segment, Readable, DPL = 0, Present }
+    dw  0x00af     ; Limit [16:19] = 0xf; Base [31:24] = 0; Flags = { Granularity = 4 KiB, Long Mode }
 
-	; Kernel data segment descriptor
-	dw  0xffff      ; 4 GiB (0x100000 * 0x1000 = 4 GiB)
-	dw  0x0000      ; base address = 0
-	dw  0x9200      ; data read/write
-	dw  0x00cf      ; granularity = 4096, size flag (+5th nibble of limit)
+    ; Kernel data segment descriptor
+    dw  0xffff     ; Limit [00:15] = 0xffff (4 GiB)
+    dw  0x0000     ; Base  [00:15] = 0
+    dw  0x9200     ; Base  [16:23] = 0; Access Byte = { Data Segment, Writable, DPL = 0, Present }
+    dw  0x00cf     ; Limit [16:19] = 0xf; Base [31:24] = 0; Flags = { Granularity = 4 KiB, Long Mode }
+
+    ; TODO: Add user code and data segments
+
+    ; TODO: Add task state segment (TSS)
 
 ; Descriptor for the GDT
 align 8
 gdt_descriptor:
+    ; TODO: Adjust limit after adding descriptors to GDT
     dw 3 * 8 - 1    ; GDT has 3 entries of 8 bytes each; Limit = size - 1
     dq gdt          ; Address of the GDT
+
+tss:
+    times 102 db 0 ; Set all TSS fields to 0
+    dw 0x68 ; I/O-bitmap offset (no IO bitmap, so set to size of TSS 0x68 = 104)
 
 [SECTION .bss]
 
 ; The kernel stack
 global init_stack:data (init_stack.end - init_stack)
 init_stack:
-	  resb STACK_SIZE
+      resb STACK_SIZE
 .end:
