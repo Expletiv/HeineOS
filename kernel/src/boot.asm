@@ -220,7 +220,17 @@ gdt:
     dw  0x9200     ; Base  [16:23] = 0; Access Byte = { Data Segment, Writable, DPL = 0, Present }
     dw  0x00cf     ; Limit [16:19] = 0xf; Base [31:24] = 0; Flags = { Granularity = 4 KiB, Long Mode }
 
-    ; TODO: Add user code and data segments
+    ; User code segment descriptor
+    dw  0xffff     ; Limit [00:15] = 0xffff (4 GiB)
+    dw  0x0000     ; Base  [00:15] = 0
+    dw  0xfa00     ; Base  [16:23] = 0; Access Byte = { Code Segment, Readable, DPL = 3, Present }
+    dw  0x00af     ; Limit [16:19] = 0xf; Base [31:24] = 0; Flags = { Granularity = 4 KiB, Long Mode }
+
+    ; User data segment descriptor
+    dw  0xffff     ; Limit [00:15] = 0xffff (4 GiB)
+    dw  0x0000     ; Base  [00:15] = 0
+    dw  0xf200     ; Base  [16:23] = 0; Access Byte = { Data Segment, Writable, DPL = 3, Present }
+    dw  0x00cf     ; Limit [16:19] = 0xf; Base [31:24] = 0; Flags = { Granularity = 4 KiB, Long Mode }
 
     ; TODO: Add task state segment (TSS)
 
@@ -228,7 +238,7 @@ gdt:
 align 8
 gdt_descriptor:
     ; TODO: Adjust limit after adding descriptors to GDT
-    dw 3 * 8 - 1    ; GDT has 3 entries of 8 bytes each; Limit = size - 1
+    dw 5 * 8 - 1    ; GDT has 3 entries of 8 bytes each; Limit = size - 1
     dq gdt          ; Address of the GDT
 
 tss:
