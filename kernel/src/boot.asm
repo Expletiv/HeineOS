@@ -171,7 +171,9 @@ load_gdt:
     mov fs, ax
     mov gs, ax
 
-    ; TODO: Load TSS register with the TSS descriptor
+    ; Load TSS register with the TSS descriptor
+    mov ax, (5 * 0x08)
+    ltr ax
 
     ; Load data segment selector into stack segment register
     mov ax, (2 * 0x08)
@@ -187,13 +189,22 @@ load_cs_jmp:
 
 ; Set TSS base address in TSS descriptor
 tss_set_base_address:
-    ; TODO: Implement this function to set the TSS base address
+    mov rax, tss
+    mov rcx, tss_descriptor
+    mov word [rcx+2], ax
+    shr rax, 16
+    mov byte [rcx+4], al
+    shr rax, 8
+    mov byte [rcx+7], al
+    shr rax, 8
+    mov dword [rcx+8], eax
     ret
 
 ; Set kernel stack (rsp0) in TSS
 ; First Parameter -> RDI = Pointer to kernel stack
 tss_set_rsp0:
-    ; TODO: Implement this function to set the rsp0 entry in the TSS
+    mov rax, tss
+    mov qword [rax+4], rdi
     ret
 
 ; Get the start address of the TSS (return value in rax)
@@ -232,13 +243,22 @@ gdt:
     dw  0xf200     ; Base  [16:23] = 0; Access Byte = { Data Segment, Writable, DPL = 3, Present }
     dw  0x00cf     ; Limit [16:19] = 0xf; Base [31:24] = 0; Flags = { Granularity = 4 KiB, Long Mode }
 
-    ; TODO: Add task state segment (TSS)
+    ; Task state segment descriptor (TSSD)
+    ; Base address is set at runtime
+    tss_descriptor:
+    dw  0x0067     ; Limit [00:15] = 0x67 (0x68 - 1, last byte of TSS)
+    dw  0x0000     ; Base  [00:15] = 0
+    ; 1 00 0 1001 00000000
+    dw  0x8900     ; Base  [16:23] = 0; Access Byte = { Type = 0x9, System Segment, DPL = 0, Present }
+    ; Base, Limit and Flags G=0 and AVL=0
+    dw  0x0000     ; Limit [16:19] = 0; Base [31:24] = 0; Flags = { Granularity = 1 Byte }
+    dd  0x00000000 ; Base  [63:32] = 0
+    dd  0x00000000 ; Reserved, all 0
 
 ; Descriptor for the GDT
 align 8
 gdt_descriptor:
-    ; TODO: Adjust limit after adding descriptors to GDT
-    dw 5 * 8 - 1    ; GDT has 3 entries of 8 bytes each; Limit = size - 1
+    dw 7 * 8 - 1    ; GDT has 7 entries of 8 bytes each (counting TSSD as 2 entries); Limit = size - 1
     dq gdt          ; Address of the GDT
 
 tss:
