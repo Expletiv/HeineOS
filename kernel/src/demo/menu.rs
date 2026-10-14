@@ -1,21 +1,20 @@
-use core::sync::atomic::Ordering;
-use crate::demo::{lesson1, lesson2, lesson4, lesson5, lesson6, lesson7};
+use crate::demo::{lesson1, lesson2, lesson4, lesson5, lesson6, lesson7, lesson8};
 use crate::device::terminal::{framebuffer, terminal};
 use crate::library::bitmap::Bitmap;
 use crate::library::input;
 use crate::library::input::read_char;
 use crate::thread::scheduler::scheduler;
 use crate::thread::thread::Thread;
+use core::sync::atomic::Ordering;
 
 pub fn demo_menu() {
     let scheduler = scheduler();
-    let demo_thread = Thread::new(demo_loop);
+    let demo_thread = Thread::new_kernel_thread(demo_loop);
     scheduler.ready(demo_thread);
     scheduler.schedule();
 }
 
 fn demo_loop() {
-
     loop {
         terminal().lock().clear();
         println!("Demo Menu:\n");
@@ -29,12 +28,13 @@ fn demo_loop() {
         println!("7. Peanut GB Demo");
         println!("8. Print PCI Devices");
         println!("9. RTL8139 Demo");
+        println!("a. User & Kernel Thread Demo");
 
         let bitmap = Bitmap::read_from_file("heine.bmp");
         match bitmap {
             Ok(Some(bitmap)) => {
                 framebuffer().lock().draw_bitmap(&bitmap, 280, 164);
-            },
+            }
             Ok(None) => println!("Invalid or unsupported BMP file"),
             Err(_) => println!("Error reading BMP file"),
         }
@@ -64,6 +64,14 @@ fn demo_loop() {
                 if c == '9' {
                     lesson7::DEMO_RUNNING.store(false, Ordering::Relaxed);
                 }
+            }
+            'a' => {
+                terminal().lock().clear();
+
+                lesson8::user_thread_demo();
+
+                println!("\nPress 'Enter' to return to the demo selector.");
+                input::wait_for_return();
             }
             _ => {
                 continue;

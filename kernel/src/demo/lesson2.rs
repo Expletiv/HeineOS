@@ -6,18 +6,16 @@
  * License: GPLv3
  */
 
-use alloc::boxed::Box;
-use alloc::vec;
-use alloc::vec::Vec;
-use crate::allocator;
 use crate::allocator::global::dump_free_list;
-use crate::device::key::Scancode;
+
 use crate::device::speaker;
 use crate::device::speaker::SPEAKER;
-use crate::device::terminal::terminal;
+
 use crate::library::input;
 use crate::thread::scheduler::scheduler;
 use crate::thread::thread::Thread;
+use alloc::boxed::Box;
+use alloc::vec;
 
 struct MyStruct {
     a: u8,
@@ -82,7 +80,7 @@ fn demo_memory_leak() {
 
     let aligned_struct = Box::new(HighlyAlignedStruct { data: [0; 16] });
     log::info!("Aligned struct allocated at: {:p}", aligned_struct);
-    
+
     log::info!("--- 3. AFTER ALIGNED ALLOCATION ---");
     dump_free_list();
 
@@ -107,7 +105,7 @@ pub fn speaker_demo() {
 
     println!("Enter '1' or '2' on the keyboard.");
 
-    let speaker_thread = Thread::new(select_song());
+    let speaker_thread = Thread::new_kernel_thread(select_song());
     let scheduler = scheduler();
     scheduler.ready(speaker_thread);
 }

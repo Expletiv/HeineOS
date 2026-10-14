@@ -9,7 +9,6 @@
 #![feature(abi_x86_interrupt)]
 #![feature(unsafe_cell_access)]
 #![feature(c_size_t)]
-
 // Silence compiler warnings.
 // This is done to avoid overwhelming compiler output when building the OS at the beginning.
 // As you move on with the course, the warnings for unused functions or parameters will become less relevant,
@@ -20,10 +19,6 @@
 
 extern crate alloc;
 
-use core::arch::asm;
-use core::fmt::Write;
-use log::{debug, error, info};
-use uefi::mem::memory_map::MemoryMapOwned;
 use crate::allocator::global::init_allocator;
 use crate::device::framebuffer::Framebuffer;
 use crate::device::serial::COM1;
@@ -31,20 +26,23 @@ use crate::device::{cpu, keyboard, pic, pit, rtl8139, terminal};
 use crate::filesystem::tarfs;
 use crate::interrupt::dispatcher;
 use crate::logger::Logger;
-use crate::thread::scheduler;
+use crate::paging::pages::setup_initial_paging;
+use log::{debug, error, info};
+use uefi::mem::memory_map::MemoryMapOwned;
 
 #[macro_use]
 mod device;
+mod allocator;
+mod consts;
+mod coroutine;
+mod demo;
+mod filesystem;
+mod interrupt;
 mod library;
 mod logger;
 mod multiboot;
-mod demo;
-mod consts;
-mod allocator;
-mod interrupt;
+mod paging;
 mod thread;
-mod coroutine;
-mod filesystem;
 
 unsafe extern "C" {
     fn load_gdt();
@@ -79,8 +77,8 @@ pub extern "C" fn main(multiboot_magic: u32, multiboot: &multiboot::BootInfo) ->
         .find_tag::<multiboot::FramebufferInfo>(multiboot::TagType::FramebufferInfo)
         .expect("Missing framebuffer info");
 
-    let framebuffer = Framebuffer::from_multiboot(framebuffer_info)
-        .expect("Failed to initialize framebuffer");
+    let framebuffer =
+        Framebuffer::from_multiboot(framebuffer_info).expect("Failed to initialize framebuffer");
 
     // Initialize the terminal for text output.
     // The terminal takes ownership of the framebuffer, so we cannot use it directly anymore after this point.
@@ -94,7 +92,12 @@ pub extern "C" fn main(multiboot_magic: u32, multiboot: &multiboot::BootInfo) ->
     let _ = exit_uefi_boot_services(multiboot);
 
     // Load the Global Descriptor Table (code in boot.asm)
-    unsafe { load_gdt(); }
+    unsafe {
+        load_gdt();
+    }
+
+    // Temp solution: setup paging so user threads can access (all) pages
+    setup_initial_paging();
 
     info!("Kernel initialized successfully!");
 
@@ -105,11 +108,12 @@ pub extern "C" fn main(multiboot_magic: u32, multiboot: &multiboot::BootInfo) ->
         .find_tag::<multiboot::ModuleTag>(multiboot::TagType::Module)
         .expect("Missing initial ramdisk");
 
-    let tarfs_archive = tar_no_std::TarArchiveRef::new(initrd.as_slice()).expect("Failed to parse initrd");
+    let tarfs_archive =
+        tar_no_std::TarArchiveRef::new(initrd.as_slice()).expect("Failed to parse initrd");
 
     info!("Initializing tarfs filesystem");
     tarfs::init_filesystem(tarfs_archive);
-    
+
     info!("Initializing interrupt dispatcher");
     dispatcher::init_interrupt_dispatcher();
 
@@ -130,7 +134,7 @@ pub extern "C" fn main(multiboot_magic: u32, multiboot: &multiboot::BootInfo) ->
 
     info!("Enabling interrupts");
     cpu::enable_int();
-    
+
     demo::menu::demo_menu();
 
     // Endless loop, as we cannot return from main().
@@ -147,7 +151,12 @@ fn exit_uefi_boot_services(multiboot: &multiboot::BootInfo) -> MemoryMapOwned {
     // Check if the bootloader terminated the EFI boot services.
     // The bootloader provides this information via a multiboot tag.
     // If this tag is not present, the boot services were terminated and we cannot proceed.
-    if multiboot.find_tag::<multiboot::EfiBootServicesNotTerminatedTag>(multiboot::TagType::EfiBootServicesNotTerminated).is_none() {
+    if multiboot
+        .find_tag::<multiboot::EfiBootServicesNotTerminatedTag>(
+            multiboot::TagType::EfiBootServicesNotTerminated,
+        )
+        .is_none()
+    {
         panic!("EFI boot services were terminated by the bootloader");
     }
 
@@ -155,27 +164,44 @@ fn exit_uefi_boot_services(multiboot: &multiboot::BootInfo) -> MemoryMapOwned {
     // The map_or_else() function takes two closures:
     // The first one is called if the tag is not found, causing a panic.
     // The second one is called if the tag is found, where we set the image handle and system table.
-    if let Some(image_handle_tag) = multiboot.find_tag::<multiboot::Efi64BitImageHandleTag>(multiboot::TagType::Efi64BitImageHandlePointer) {
+    if let Some(image_handle_tag) = multiboot.find_tag::<multiboot::Efi64BitImageHandleTag>(
+        multiboot::TagType::Efi64BitImageHandlePointer,
+    ) {
         // The tag is found, we can log the image handle address.
-        debug!("EFI image is located at: {:#x}", image_handle_tag.as_ptr() as usize);
+        debug!(
+            "EFI image is located at: {:#x}",
+            image_handle_tag.as_ptr() as usize
+        );
 
         // We use the `uefi` crate to communicate with the UEFI firmware.
         // For that, we first need to set the EFI image handle and system table pointers in the `uefi` crate.
         unsafe {
-            let image_handle = uefi::Handle::from_ptr(image_handle_tag.as_ptr()).expect("Failed to get EFI image handle");
+            let image_handle = uefi::Handle::from_ptr(image_handle_tag.as_ptr())
+                .expect("Failed to get EFI image handle");
             uefi::boot::set_image_handle(image_handle);
         }
 
         // Now we retrieve the EFI system table pointer from the multiboot information.
-        multiboot.find_tag::<multiboot::Efi64BitSystemTableTag>(multiboot::TagType::Efi64BitSystemTablePointer)
-            .map_or_else(|| {
-                // If the tag is not found, panic with an error message.
-                panic!("Missing EFI system table pointer tag");
-            },|efi_system_table_tag| {
-                // The tag is found, we can log the system table address and set it in the `uefi` crate.
-                debug!("EFI system table is located at: {:#x}", efi_system_table_tag.as_ptr() as usize);
-                unsafe { uefi::table::set_system_table(efi_system_table_tag.as_ptr()); }
-            });
+        multiboot
+            .find_tag::<multiboot::Efi64BitSystemTableTag>(
+                multiboot::TagType::Efi64BitSystemTablePointer,
+            )
+            .map_or_else(
+                || {
+                    // If the tag is not found, panic with an error message.
+                    panic!("Missing EFI system table pointer tag");
+                },
+                |efi_system_table_tag| {
+                    // The tag is found, we can log the system table address and set it in the `uefi` crate.
+                    debug!(
+                        "EFI system table is located at: {:#x}",
+                        efi_system_table_tag.as_ptr() as usize
+                    );
+                    unsafe {
+                        uefi::table::set_system_table(efi_system_table_tag.as_ptr());
+                    }
+                },
+            );
     } else {
         // If the tag is not found, panic with an error message.
         panic!("Missing EFI image handle pointer tag")

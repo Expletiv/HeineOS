@@ -1,0 +1,29 @@
+// Zed project settings: make rust-analyzer check the kernel like kernel/Makefile.toml builds it
+// (custom x86_64 target, core/alloc built from source, no std and no test harness).
+{
+  "lsp": {
+    "rust-analyzer": {
+      "initialization_options": {
+        "cargo": {
+          "target": "heineos_kernel.json",
+          "allTargets": false,
+          "targetDir": true,
+          "extraArgs": [
+            "-Zbuild-std=core,alloc",
+            "-Zbuild-std-features=compiler-builtins-mem",
+            "-Zjson-target-spec"
+          ],
+          "extraEnv": {
+            "RUSTFLAGS": "-Zunstable-options"
+          }
+        },
+        "check": {
+          "allTargets": false
+        },
+        "cfg": {
+          "setTest": false
+        }
+      }
+    }
+  }
+}
