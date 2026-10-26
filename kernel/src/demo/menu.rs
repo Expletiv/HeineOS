@@ -1,4 +1,4 @@
-use crate::demo::{lesson1, lesson2, lesson4, lesson5, lesson6, lesson7, lesson8};
+use crate::demo::{lesson1, lesson2, lesson4, lesson5, lesson6, lesson7, lesson8, lesson9};
 use crate::device::terminal::{framebuffer, terminal};
 use crate::library::bitmap::Bitmap;
 use crate::library::input;
@@ -29,6 +29,7 @@ fn demo_loop() {
         println!("8. Print PCI Devices");
         println!("9. RTL8139 Demo");
         println!("a. User & Kernel Thread Demo");
+        println!("b. Sycall Demo");
 
         let bitmap = Bitmap::read_from_file("heine.bmp");
         match bitmap {
@@ -65,10 +66,14 @@ fn demo_loop() {
                     lesson7::DEMO_RUNNING.store(false, Ordering::Relaxed);
                 }
             }
-            'a' => {
+            'a'..='b' => {
                 terminal().lock().clear();
 
-                lesson8::user_thread_demo();
+                match c {
+                    'a' => lesson8::user_thread_demo(),
+                    'b' => lesson9::syscall_demo(),
+                    _ => {}
+                }
 
                 println!("\nPress 'Enter' to return to the demo selector.");
                 input::wait_for_return();
