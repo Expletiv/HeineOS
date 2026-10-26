@@ -6,7 +6,7 @@
  * License: GPLv3
  */
 
-use crate::consts::STACK_SIZE;
+use crate::consts::{STACK_SIZE};
 use crate::device::cpu;
 use crate::thread::scheduler::scheduler;
 use alloc::boxed::Box;
@@ -135,6 +135,7 @@ impl Thread {
     pub fn new_user_thread(entry: fn()) -> Box<Thread> {
         let mut thread = Self::new_kernel_thread(entry);
         thread.is_kernel_thread = false;
+        thread.user_stack.extend(core::iter::repeat_n(0, STACK_SIZE / 8));
         thread
     }
 
@@ -177,14 +178,9 @@ impl Thread {
     pub fn new_kernel_thread(entry: fn()) -> Box<Thread> {
         // Allocate memory for the stack and initialize it to zero
         let mut kernel_stack = Vec::<u64>::with_capacity(STACK_SIZE / 8);
-        for _ in 0..kernel_stack.capacity() {
-            kernel_stack.push(0);
-        }
+        kernel_stack.extend(core::iter::repeat_n(0, kernel_stack.capacity()));
 
-        let mut user_stack = Vec::<u64>::with_capacity(STACK_SIZE / 8);
-        for _ in 0..user_stack.capacity() {
-            user_stack.push(0);
-        }
+        let user_stack = Vec::<u64>::new();
 
         // Set the stack pointer to the top of the stack
         let stack_ptr = ptr::from_ref(&kernel_stack[kernel_stack.capacity() - 1]) as usize;
@@ -254,7 +250,7 @@ impl Thread {
         self.kernel_stack[length - 16] = 0; // rbp
         self.kernel_stack[length - 17] = 0x2; // rflags (IE = 0); interrupts disabled
 
-        self.stack_ptr = self.stack_ptr - (size_of::<u64>() * 16);
+        self.stack_ptr -= size_of::<u64>() * 16;
     }
 
     /// Called indirectly by using the prepared stack in 'thread_start' and 'thread_switch'.
@@ -266,7 +262,7 @@ impl Thread {
         if self.is_kernel_thread {
             // Interrupts are disabled during thread start, so we need to re-enable them here
             cpu::enable_int();
-            ((*self).entry)();
+            (self.entry)();
         } else {
             self.switch_to_usermode();
         }
@@ -275,12 +271,13 @@ impl Thread {
     }
 
     fn kickoff_user_thread(&self) {
-        ((*self).entry)();
+        (self.entry)();
+        #[allow(clippy::empty_loop)]
         loop {} // User threads may currently not exit (iretq jumps (no call) so there is no return address on the stack)
     }
 
     /// Get a pointer to the top of the given stack.
-    fn get_top_of_stack(stack: &Vec<u64>) -> *const u64 {
+    fn get_top_of_stack(stack: &[u64]) -> *const u64 {
         unsafe { ptr::from_ref(&stack[stack.len() - 1]).offset(1) }
     }
 }

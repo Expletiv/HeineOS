@@ -1,3 +1,5 @@
+use core::arch::asm;
+
 use crate::device::pit;
 use crate::device::terminal::terminal;
 use crate::thread::scheduler::scheduler;
