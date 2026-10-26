@@ -18,7 +18,7 @@ For this, we overwrite the existing IDT entry at index (vector number) 0x80.
 
 Implement a new function `new_trap_gate()` for the struct `IdtEntry` in [kernel/src/interrupts/idt.rs](https://github.com/hhu-bsinfo/HeineOS/blob/lesson-9/kernel/src/interrupts/idt.rs), that creates a new trap gate with DPL = 3.
 
-*CAUTION: In the given code, the existing function `IdtEntry::new()` has been renamed to `IdtEntry::new_interrupt_gate()`*
+*CAUTION: Rename the existing function `IdtEntry::new()` to `IdtEntry::new_interrupt_gate()` in your code.*
 
 Afterward, a new trap gate must be installed in the IDT.
 Use the function `IdtEntry::syscall_gate()` to create a new trap gate with DPL = 3, pointing to the function `syscall::dispatcher::dispatch_syscall()`.
