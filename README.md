@@ -1,131 +1,97 @@
-# Lesson 8: User Mode Threads
-
-This is the first assignment of the course "Isolation and Protection in Operating Systems" (Isolation und Schutz in Betriebssystemen).
-If you have made it through the first course "OS Development" (Betriebssystementwicklung) you can continue with your existing code.
-If you have not heard the first course yet, or do not want to use your existing code, a working operating system is provided at the semester start.
+# Lesson 9: System Calls
 
 ## Learning Goals
-1. Understand how application code can be executed in user mode (ring 3) on x86 platforms
-2. Prohibit user mode threads from executing privileged instructions
-
+1. Understand how system calls work and allow us to switch from ring 3 to ring 0 in a controlled manner
+2. Implement several system calls to expose kernel APIs to user mode threads
 
 ## Slides for this assignment
-- Lecture 8: [Introduction](https://github.com/hhu-bsinfo/HeineOS/blob/main/slides/lecture8_introduction_(german).pdf)
-- Lecture 9: [Segmentation and Tasks](https://github.com/hhu-bsinfo/HeineOS/blob/main/slides/lecture9_segmentation_and_tasks.pdf)
+- Lecture 10: [System Calls](https://github.com/hhu-bsinfo/HeineOS/blob/main/slides/lecture10_system_calls.pdf)
 
-## Assignment 8.1: Global Descriptor Table (GDT)
-If you continue developing your operating system from lessons 1–7, start by replacing your `boot.asm` file with the one provided in the [given code](https://github.com/hhu-bsinfo/HeineOS/blob/lesson-8/kernel/src/boot.asm).
+## Assignment 9.1: Interrupt Descriptor Table (IDT)
+A fundamental approach to executing system calls is to trigger a software interrupt (e.g., 0x80 in Linux).
+This automatically switches the CPU to ring 0. However, we need a corresponding interrupt handler in our IDT.
 
-Our operating system already has a GDT, it only contains entries for the *kernel* code and data segments (ring 0).
-Your task is to add two additional entries for *user mode* code and data segments (ring 3).
-The GDT is located at the label `gdt`. Furthermore, the limit field of the GDT descriptor needs to be adjusted.
-You can find the GDT descriptor at the label `gdt_descriptor`.
+Currently, our IDT is filled with interrupt gates (256 entries), which all have their privilege level (DPL) set to 0
+and point the same function `dispatch_interrupt()`. To realize system calls via software interrupts,
+we need a trap gate with DPL = 3 to allow user mode threads to trigger this interrupt.
+For this, we overwrite the existing IDT entry at index (vector number) 0x80.
 
-It is not really possible to test the changes done in this assignment, but the operating system should still work as before.
+Implement a new function `new_trap_gate()` for the struct `IdtEntry` in [kernel/src/interrupts/idt.rs](https://github.com/hhu-bsinfo/HeineOS/blob/lesson-9/kernel/src/interrupts/idt.rs), that creates a new trap gate with DPL = 3.
 
-## Assignment 8.2: Task State Segment (TSS)
-Next, we need a TSS that points to the kernel stack. If a thread runs in ring 3 and is interrupted,
-the CPU loads the stack pointer from the `rsp0` entry of the loaded TSS. After the interrupt is fully handled,
-the user mode stack pointer is restored.
+*CAUTION: In the given code, the existing function `IdtEntry::new()` has been renamed to `IdtEntry::new_interrupt_gate()`*
 
-In the given `boot.asm` file, a TSS is already defined (without I/O-bitmap, as we do not want to allow any I/O-port accesses in user mode)
-at the label `tss`. Since we only use a single CPU core, one TSS is enough for our operating system.
+Afterward, a new trap gate must be installed in the IDT.
+Use the function `IdtEntry::syscall_gate()` to create a new trap gate with DPL = 3, pointing to the function `syscall::dispatcher::dispatch_syscall()`.
 
-For the TSS to be usable, you need to add a TSS descriptor to the GDT.
-Most information can be entered directly into the TSS descriptor (e.g., flags, limit),
-but the base address needs to be set at runtime and should be zeroed for now.
+*Note: Detailed information for this task is provided in the [Intel Software Developer’s Manual](https://www.intel.com/content/www/us/en/developer/articles/technical/intel-sdm.html) Volume 3 in chapter 7.11: IDT Descriptors*
 
-*CAUTION: The TSS descriptor has double the size of a normal GDT entry*
+## Assignment 9.2: System Call Handler
+Next, we need to implement the syscall handler `dispatch_syscall()` in [kernel/src/syscall/dispatcher.rs](https://github.com/hhu-bsinfo/HeineOS/blob/lesson-9/kernel/src/syscall/dispatcher.rs).
+Implement the missing code in `dispatch_syscall()`, so that a system call is executed in the following way:
+1. An application writes the system call number to the `rax` and triggers a software interrupt via the instruction `int x80` afterward.
+2. Our new IDT entry ensures that `dispatch_syscall()` is called directly after the interrupt occurs (the CPU automatically switches to ring 0).
+This function must first store all registers (except `rax`) on the stack and then uses the value in `rax` as index into the system call table.
+Afterward, the corresponding function is called.
+3. After the system call function has returned, all registers (except `rax`) must be restored from the stack.
+The return value remains in `rax` and can be processed by the application. Now, the syscall dispatcher returns into user mode using the instruction `iretq`.
 
-The TSS address is defined by the `tss` label, but the descriptor splits the address into three parts,
-making it impossible to directly enter it into the GDT descriptor.
-Because of this, we set the base address at runtime using the function `tss_set_base_address`.
-Your task is to implement this function in assembly language, so that splits the TSS address into three parts
-and writes each part at the correct position in the TSS descriptor.
-To get the TSS descriptor address, you should define a label (e.g., `tss_descriptor`) at the corresponding position in the GDT.
+The general user mode API for all system calls is located in [kernel/src/syscall/user_api.rs](https://github.com/hhu-bsinfo/HeineOS/blob/lesson-9/kernel/src/syscall/user_api.rs).
+The given code already contains the example system call `usr_hello_world()`, which logs a message to the serial port.
 
-Next, we need a function to set the `rsp0` entry of the TSS. Implement `tss_set_rsp0` in assembly language.
-Note that this function is already called in the `start` function of `boot.asm`.
-Later we will call this function from our Rust code to set the stack pointer during each thread switch.
+The kernel space counterpart to `usr_hello_world()` is called `sys_hello_world()` and located in [kernel/src/syscall/functions/](https://github.com/hhu-bsinfo/HeineOS/blob/lesson-9/kernel/src/syscall/functions/).
+All further system calls should also be implemented in this folder. Thematically related system calls can be grouped together in the same file.
 
-At last, you need to load the TSS register (TSSR) by using the instruction `ltr`.
-The correct position to execute this instruction is already marked by a comment in `boot.asm`.
+To test system calls, you should use the code given in [kernel/src/demo/lesson9.rs](https://github.com/hhu-bsinfo/HeineOS/blob/lesson-9/kernel/src/demo/lesson9.rs),
+which creates a new user mode thread executing the function `syscall_test_thread()`. For now, this only calls `usr_hello_world()` and enters an infinite loop.
+If all goes well, you should see the message printed by `sys_hello_world()` in the log output on the serial port.
+*Important: Writing to the serial port uses I/O-port accesses, which are not allowed in user mode.
+However, the CPU switches to ring 0 because of the system call, allowing us to execute the corresponding code.*
 
-Memory for the initial stack is defined by the label `init_stack`. This stack is used for the boot process until the scheduler is started.
-Afterward, each thread has its own kernel and user stacks (allocated on the heap), and the initial stack is no longer needed.
+## Assignment 9.3: Further System Calls
+After the first system call is working and has been tested successfully, you should implement the following additional system calls:
+ * `usr_thread_yield()` -> `sys_thread_yield()`: Yield the CPU and switch to the next thread
+ * `usr_thread_exit()` -> `sys_thread_exit()`: Terminate the current thread.
+Once this system call works, the function `kickoff_user_thread()` in `thread.rs` should be modified to call
+`usr_thread_exit()` at the end of a user mode thread, instead of spinning in an infinite loop.
+ * `usr_thread_get_id() -> usize` -> `sys_thread_get_id() -> u64`: Return the ID of the current thread.
+ * `usr_get_system_time() -> usize` -> `sys_get_system_time() -> u64`: Return the current system time in milliseconds.
+ * `usr_print(msg: &str)` -> `sys_print(buffer: *const u8, len: usize)`: Print a string to the terminal.
+The `&str` parameter has to be deconstructed into a raw pointer and a length, which can be passed to the kernel space function in registers.
+ * `usr_get_key_event() -> Option<KeyEvent>` -> `sys_get_key_event(event: *mut KeyEvent) -> u64`: Get the next key event from the keyboard queue.
+This system call is more complext than the others, because a `KeyEvent` cannot be returned in a register (it is too large).
+Because of this, `usr_get_key_event()` must create an empty `KeyEvent` struct and pass a pointer to it to `sys_get_key_event()`.
+The kernel function must then check if there is a key event available, and if so, write it to the given pointer.
+The `u64` return value indicates whether a key event was available.
 
-Again, this assignment is not really testable, but the operating system should still work as before.
-You can verify that the TSS is loaded correctly by opening `View` -> `compatmonitor0` in QEMU and typing `info registers`.
-This prints all CPU registers, including the Task Register (`TR`), allowing you to check if the shown values are plausible.
+In the given code, the function `user_api::syscall0(syscall: SyscallFunction)` is implemented to perform a system call without any parameters.
+To support system calls with parameters, you should implement further functions like `syscall1(syscall: SyscallFunction, arg1: u64)`
+and `syscall2(syscall: SyscallFunction, arg1: u64, arg2: u64)`. The parameters should be passed according to the `System V AMD64 ABI`.
+Up to five parameters can be supported this way.
 
-![CPU registers shown in QEMU](https://raw.githubusercontent.com/hhu-bsinfo/HeineOS/refs/heads/main/media/lesson-8/qemu_registers.png).
+*Note: Detailed information for passing parameters in registers is provided in the [System V AMD 64 Architecture Processor Supplement](https://cs61.seas.harvard.edu/site/pdf/x86-64-abi-20210928.pdf) in chapter 3.2.3: Parameter Passing*.
 
-*Note: Detailed information for this task is provided in the [Intel Software Developer’s Manual](https://www.intel.com/content/www/us/en/developer/articles/technical/intel-sdm.html) Volume 3 in Chapter 9.2: Task Management Data Structures*
+Test your system call in `lesson9::syscall_test_thread()` like the following:
+Start by printing the current thread ID to the terminal. Then, read keyboard input in a loop until the return key is pressed.
+Afterward, print the line that has just been entered to the terminal together with the current system time.
 
-## Assignment 8.3: User Mode Threads
-User mode threads (running in ring 3) always have two stacks: One for user mode and one for kernel mode.
-For the sake of simplicity, we always allocate two stacks for each thread, even for pure kernel threads.
-To achieve this, the struct `Thread` in `kernel/thread/thread.rs` needs to be extended with a new `Vec<u64>` for the user stack
-and a `bool` flag to indicate whether the thread is running in user mode. The existing `Thread::new()` function
-should be renamed to `Thread::new_kernel_thread()` and only be used to create pure kernel threads.
-A new function `Thread::new_user_thread()` should be implemented, which sets the `is_kernel_thread` flag to `false`.
-Furhtermore, `Thread::kickoff()` should now be named `Thread::kickoff_kernel_thread()` and `Thread::prepare_stack()` should be renamed to `Thread::prepare_kernel_stack()`.
+*Note: Some of the system calls seem superfluous now, as it is still possible to directly call kernel functions.
+However, once we have implemented a proper protection mechanism via paging, user mode threads will not be able anymore to access kernel space memory (and code).*
 
-The function `thread_switch()` gets an addidiontal third parameter called `next_stack_end`, which contains the next stack's end address.
-This is the address, that the `rsp0` entry of the TSS should point to.
-As it is the third parameter, it is passed to `thread_switch()` in the `rdx` register (as specified by the System V ABI).
-You must call `tss_set_rsp0()` inside of `thread_switch()`, directly before setting `rsp` to the next thread's stack.
-When calling `tss_set_rsp0()`, the address should be passed in the `rdi` register.
+![System Call Test](https://raw.githubusercontent.com/hhu-bsinfo/HeineOS/refs/heads/main/media/lesson-9/system_calls.png)
 
-We do not have to care about managing the user mode stack pointer when switching between threads
-because it is automatically saved and restored by the CPU when an interrupt occurs in ring 3.
+## Optional Assignment: Fast System Calls
+System Calls via Trap Gate are rather slow. To accommodate for that, the instructions `sysenter`/`sysexit` (Intel) and `syscall`/`sysret` (AMD) have been introduced.
+These allow to enter and leave ring 0 without triggering an interrupt.
+In x86_64-systems, only `syscall`/`sysret` are used.
+Using fast system calls requires a special GDT layout.
 
-*CAUTION: This means that user mode threads are currently not allowed to call `Scheduler::yield_cpu()` and `Scheduler::exit()` manually.
-If you call `Scheduler::yield_cpu()` in your `pit::wait()` function, you also cannot call `pit::wait()` in user mode threads.
-This will be resolved at a later point, when we implement system calls for user mode threads.*
+Parameters can be passed in registers, similar to interrupt-based system calls.
+However, the RCX register (usually the fourth parameter) is already used by `syscall` instruction.
+As a workaround, the fourth parameter can be passed in another register.
 
-The existing thread start mechanism using `Thread::prepare_kernel_stack()` and `Thread::start()` remains unchanged.
-This means every thread starts in kernel mode (ring 0). However, the function `Thread::kickoff_kernel_thread()` must be
-extended to call `tss_set_rsp0()` right at its beginning, so that the stack pointer in the TSS is set correctly for the freshly started thread.
+Configuring fast system calls requires you to write *Model Specific Registers* (MSR).
+Accessing these registers is done using the assembly instructions `rdmsr`/`wrmsr`.
 
-Next, you have to implement the function `Thread::switch_to_usermode()`. It should use the assmebly function `thread_user_start()`
-to switch from ring 0 to ring 3 via the `iretq` instruction (there is no other way to achieve this).
-`Thread::switch_to_usermode()` must build a stack frame on the kernel stack, that looks exactly like an interrupt with privilege level change has occured.
-The stack frame must not contain an error code. This sould cause the `iretq` instruction to return into `Thread::kickoff_user_thread()` with the CPU running in ring 3.
+If you want to support both, fast and slow system calls, you can prefix the fast system call functions with `_fast`.
 
-*CAUTION: At this point, the current thread is running on the kernel stack, while we want to build the stack frame on this exact same stack.
-This is not ideal, as may overwrite the current stack frame, which probably leads to a system crash.
-To avoid this, you should leave some safety margin on the stack.
-For example, instead of writing the stack frame to the top of the stack, you could start 1 KiB below the top of the stack.*
-
-Before you can actually run a thread in user mode, you need to call the new function `setup_initial_paging()`, given in [kernel/paging/pages.rs](https://github.com/hhu-bsinfo/HeineOS/blob/lesson-8/kernel/paging/pages.rs).
-The UEFI/bootloader has already set up initial page tables for us, with the whole memory mapped 1:1 (identity mapping).
-Because of this, we did not have to care about paging until now. However, the page tables are set up in a way that only the kernel is allowed to access memory.
-For user mode threads to be able to access memory, the `USER` flag must be set in each page table entry.
-The function `setup_initial_paging()` does this for you and is already fully implemented.
-You have to call it inside the kernel's `main()` function, right after `load_gdt()`.
-This is only a temporary solution, as we will implement our own page tables in a later assignment.
-
-It is best to test your changes with only a single thread running. For example, you could let the idle thread run in user mode
-(of course, you need to reverse this change and let the idle thread run in kernel mode again, once you are done with this first test).
-
-To test if a thread is running in user mode, you have two options:
- * Try accessing an I/O-port -> This should result in a General Protection Fault (GPF)
- * Set a breakpoint in `kickoff_user_thread()` and check if `RPL` is set to 3 in the `CS` register using the GDB command `info registers cs`.
-
-*Note: Detailed information for this task is provided in the [Intel Software Developer’s Manual](https://www.intel.com/content/www/us/en/developer/articles/technical/intel-sdm.html) Volume 3 in Chapter 7.12: Exception and Interrupt Handling*
-
-### Test Scenario
-
-In [demo/lesson8.rs] you already find a test program that is ready to use, which runs a kernel and a user mode thread.
-Each thread fills its own line in the terminal either with the character `K` or `U`.
-For an extended test scenario, try starting multiple user threads and check if the ring changes are still working correctly.
-Use the debugger to check if the kernel thread is still running in ring 0 and the user threads are still running in ring 3 after multiple loop iterations.
-
-| ![User-Thread Test 1](https://raw.githubusercontent.com/hhu-bsinfo/HeineOS/refs/heads/main/media/lesson-8/user_threads1.png) |
-|:--:|
-| One kernel and one user mode thread |
-
-| ![User-Thread Test 2](https://raw.githubusercontent.com/hhu-bsinfo/HeineOS/refs/heads/main/media/lesson-8/user_threads2.png) |
-|:--:|
-| Two kernel and three user mode threads |
+*Note: Detailed information for this task is provided in the [Intel Software Developer’s Manual](https://www.intel.com/content/www/us/en/developer/articles/technical/intel-sdm.html) Volume 2 in chapter 4.3: Syscall and Sysret*.
