@@ -42,6 +42,7 @@ mod library;
 mod logger;
 mod multiboot;
 mod paging;
+mod syscall;
 mod thread;
 
 unsafe extern "C" {

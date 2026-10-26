@@ -13,10 +13,11 @@
  * License: GPLv3
  */
 
-use core::arch::asm;
-use core::ptr;
 use crate::interrupt::dispatcher::dispatch_interrupt;
 use crate::library::once::Once;
+use crate::syscall::dispatcher::dispatch_syscall;
+use core::arch::asm;
+use core::ptr;
 
 /// Static instance of the Interrupt Descriptor Table (IDT).
 /// Wrapped inside a Once, because Idt::new() is not const.
@@ -59,7 +60,7 @@ pub struct IdtEntry {
 #[repr(C, packed)]
 /// The IDT itself is just a packed array of 256 IDT entries.
 pub struct Idt {
-    entries: [IdtEntry; IDT_SIZE]
+    entries: [IdtEntry; IDT_SIZE],
 }
 
 #[repr(C, packed)]
@@ -75,17 +76,16 @@ impl IdtDescriptor {
     fn new(idt: &Idt) -> IdtDescriptor {
         IdtDescriptor {
             limit: (size_of::<Idt>() - 1) as u16, // Limit is the size of the IDT - 1
-            address: ptr::from_ref(idt) as u64 // Address just points to the beginning of the IDT
+            address: ptr::from_ref(idt) as u64,   // Address just points to the beginning of the IDT
         }
     }
 }
 
 impl IdtEntry {
     /// Create a new IDT entry for an interrupt handler at the given offset.
-    /// Each entry has the same selector and options:
+    /// Each entry has the same selector:
     /// The selector is the first entry in the GDT after the null descriptor (kernel code segment) -> 1 * 8 = 8.
-    /// The options are always 'Present', 'DPL=0' and '64-bit interrupt gate'.
-    const fn new(offset: u64) -> IdtEntry {
+    const fn new(offset: u64, options: u16) -> IdtEntry {
         let offset_low = offset as u16;
         let offset_mid = (offset >> 16) as u16;
         let offset_high = (offset >> 32) as u32;
@@ -95,23 +95,43 @@ impl IdtEntry {
             offset_mid,
             offset_high,
             selector: 8,
-            options: 0b1000_1110_0000_0000,
-            reserved: 0
+            options,
+            reserved: 0,
         }
     }
 
     /// Create a new IDT entry for an interrupt handler function.
     /// The function must be marked as 'extern "x86-interrupt"'.
     pub fn without_error_code(handler: extern "x86-interrupt" fn(InterruptStackFrame)) -> IdtEntry {
-        IdtEntry::new(handler as u64)
+        // Options: DPL=0, 'Present' and '64-bit interrupt gate'
+        let options = 0b1000_1110_0000_0000;
+        IdtEntry::new(handler as u64, options)
     }
 
     /// Create a new IDT entry for an interrupt handler function with an error code.
     /// The function must be marked as 'extern "x86-interrupt"'.
     /// This is only used for some CPU exceptions (e.g. Page Faults).
     /// See the OSDev wiki for a full list of exceptions: https://wiki.osdev.org/Exceptions
-    pub fn with_error_code(handler: extern "x86-interrupt" fn(InterruptStackFrame, error_code: u64)) -> IdtEntry {
-        IdtEntry::new(handler as u64)
+    pub fn with_error_code(
+        handler: extern "x86-interrupt" fn(InterruptStackFrame, error_code: u64),
+    ) -> IdtEntry {
+        // Options: DPL=0, 'Present' and '64-bit interrupt gate'
+        let options = 0b1000_1110_0000_0000;
+        IdtEntry::new(handler as u64, options)
+    }
+
+    /// Create a new IDT entry for a trap gate at the given offset.
+    /// This is used for system calls, which should be accessible from user mode (DPL=3).
+    const fn new_trap_gate(offset: u64) -> IdtEntry {
+        // Options: DPL=3, 'Present' and '64-bit trap gate' (1111 for the TYPE bits)
+        let options = 0b1110_1111_0000_0000;
+        IdtEntry::new(offset, options)
+    }
+
+    /// Create a new IDT entry for a syscall handler function.
+    /// This entry is a trap gate and has DPL=3, so it can be called from user mode.
+    pub fn syscall_gate(handler: extern "C" fn()) -> IdtEntry {
+        IdtEntry::new_trap_gate(handler as u64)
     }
 }
 
@@ -128,12 +148,15 @@ macro_rules! interrupt_handler {
         match $int_num {
             0x08 | 0x0a | 0x0b | 0x0c | 0x0d | 0x0e | 0x11 | 0x15 | 0x1d | 0x1e => {
                 // These interrupts push an error code onto the stack
-                extern "x86-interrupt" fn wrapper(stack_frame: InterruptStackFrame, error_code: u64) {
+                extern "x86-interrupt" fn wrapper(
+                    stack_frame: InterruptStackFrame,
+                    error_code: u64,
+                ) {
                     $handler($int_num, stack_frame, Some(error_code));
                 }
 
                 IdtEntry::with_error_code(wrapper)
-            },
+            }
             _ => {
                 // These interrupts do not push an error code onto the stack
                 extern "x86-interrupt" fn wrapper(stack_frame: InterruptStackFrame) {
@@ -279,7 +302,8 @@ impl Idt {
                 interrupt_handler!(0x7d, dispatch_interrupt),
                 interrupt_handler!(0x7e, dispatch_interrupt),
                 interrupt_handler!(0x7f, dispatch_interrupt),
-                interrupt_handler!(0x80, dispatch_interrupt),
+                // Handler for 0x80
+                IdtEntry::syscall_gate(dispatch_syscall),
                 interrupt_handler!(0x81, dispatch_interrupt),
                 interrupt_handler!(0x82, dispatch_interrupt),
                 interrupt_handler!(0x83, dispatch_interrupt),
@@ -407,7 +431,7 @@ impl Idt {
                 interrupt_handler!(0xfd, dispatch_interrupt),
                 interrupt_handler!(0xfe, dispatch_interrupt),
                 interrupt_handler!(0xff, dispatch_interrupt),
-            ]
+            ],
         }
     }
 
