@@ -20,8 +20,8 @@ Implement a new function `new_trap_gate()` for the struct `IdtEntry` in [kernel/
 
 *CAUTION: Rename the existing function `IdtEntry::new()` to `IdtEntry::new_interrupt_gate()` in your code.*
 
-Afterward, a new trap gate must be installed in the IDT.
-Use the function `IdtEntry::syscall_gate()` to create a new trap gate with DPL = 3, pointing to the function `syscall::dispatcher::dispatch_syscall()`.
+Afterward, a new trap gate must be installed in the IDT for the syscalls.
+Use the function `IdtEntry::syscall_gate()` to create a new trap gate with DPL = 3, pointing to the function `syscall::dispatcher::dispatch_syscall()`. Replace the existing entry `interrupt_handler!(0x80, dispatch_interrupt)`.
 
 *Note: Detailed information for this task is provided in the [Intel Software Developer’s Manual](https://www.intel.com/content/www/us/en/developer/articles/technical/intel-sdm.html) Volume 3 in chapter 7.11: IDT Descriptors*
 
