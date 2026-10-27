@@ -8,6 +8,7 @@
 
 use crate::consts::{STACK_SIZE};
 use crate::device::cpu;
+use crate::syscall::user_api::usr_thread_exit;
 use crate::thread::scheduler::scheduler;
 use alloc::boxed::Box;
 use alloc::vec::Vec;
@@ -272,8 +273,7 @@ impl Thread {
 
     fn kickoff_user_thread(&self) {
         (self.entry)();
-        #[allow(clippy::empty_loop)]
-        loop {} // User threads may currently not exit (iretq jumps (no call) so there is no return address on the stack)
+        usr_thread_exit();
     }
 
     /// Get a pointer to the top of the given stack.

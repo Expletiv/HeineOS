@@ -11,6 +11,11 @@
  */
 
 use crate::syscall::functions::hello::sys_hello_world;
+use crate::syscall::functions::io::{sys_get_key_event, sys_print};
+use crate::syscall::functions::thread::{
+    sys_thread_exit, sys_thread_get_id, sys_thread_wait, sys_thread_yield,
+};
+use crate::syscall::functions::time::sys_get_system_time;
 use crate::syscall::user_api::SyscallFunction;
 use core::arch::naked_asm;
 
@@ -27,7 +32,16 @@ struct SyscallFunctionTable {
 impl SyscallFunctionTable {
     pub const fn new() -> SyscallFunctionTable {
         SyscallFunctionTable {
-            table: [sys_hello_world as *const u64],
+            table: [
+                sys_hello_world as *const u64,
+                sys_thread_yield as *const u64,
+                sys_thread_wait as *const u64,
+                sys_thread_exit as *const u64,
+                sys_thread_get_id as *const u64,
+                sys_get_system_time as *const u64,
+                sys_print as *const u64,
+                sys_get_key_event as *const u64,
+            ],
         }
     }
 }
