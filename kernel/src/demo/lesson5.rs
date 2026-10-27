@@ -7,9 +7,9 @@ use crate::thread::thread::Thread;
 pub fn thread_demo() {
     println!("Thread Demo:");
 
-    let a = Thread::new(thread_entry);
-    let b = Thread::new(thread_entry);
-    let c = Thread::new(thread_entry);
+    let a = Thread::new_kernel_thread(thread_entry);
+    let b = Thread::new_kernel_thread(thread_entry);
+    let c = Thread::new_kernel_thread(thread_entry);
 
     let scheduler = scheduler();
     scheduler.ready(a);
@@ -27,9 +27,15 @@ fn thread_entry() {
         let tid = scheduler().get_active_tid();
 
         match (tid % 3, counter) {
-            (0, 501) => { return; }
-            (1, 1001) => { return; }
-            (2, 1501) => { return; }
+            (0, 501) => {
+                return;
+            }
+            (1, 1001) => {
+                return;
+            }
+            (2, 1501) => {
+                return;
+            }
             _ => {}
         }
 

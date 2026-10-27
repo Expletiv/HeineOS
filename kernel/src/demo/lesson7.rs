@@ -4,12 +4,12 @@
  * Author: Fabian Ruhland, Heinrich Heine University Duesseldorf, 2026-04-02
  * License: GPLv3
  */
-use core::sync::atomic::{AtomicBool, Ordering};
-use crate::device::pci::{pci_bus};
-use crate::device::{pit, rtl8139};
+use crate::device::pci::pci_bus;
 use crate::device::terminal::terminal;
+use crate::device::{pit, rtl8139};
 use crate::thread::scheduler::scheduler;
 use crate::thread::thread::Thread;
+use core::sync::atomic::{AtomicBool, Ordering};
 
 pub static DEMO_RUNNING: AtomicBool = AtomicBool::new(false);
 
@@ -18,7 +18,11 @@ pub fn print_pci_devices() {
     println!("PCI Demo:\n");
 
     for device in pci_bus().iter() {
-        println!("Found PCI device {:04x}:{:04x}", device.read_vendor_id(), device.read_device_id());
+        println!(
+            "Found PCI device {:04x}:{:04x}",
+            device.read_vendor_id(),
+            device.read_device_id()
+        );
     }
 }
 
@@ -26,8 +30,8 @@ pub fn rtl8139_demo() {
     terminal().lock().clear();
     println!("RTL8139 Demo:\n");
 
-    let receive_loop = Thread::new(test_receive_loop);
-    let send_loop = Thread::new(test_send_loop);
+    let receive_loop = Thread::new_kernel_thread(test_receive_loop);
+    let send_loop = Thread::new_kernel_thread(test_send_loop);
 
     DEMO_RUNNING.store(true, Ordering::Relaxed);
     scheduler().ready(receive_loop);
@@ -39,7 +43,6 @@ fn test_receive_loop() {
 
     while DEMO_RUNNING.load(Ordering::Relaxed) {
         if let Some(frame) = rtl8139::receive_packet() {
-
             let dest = &frame.data[0..6];
             let src = &frame.data[6..12];
             let ethertype = (frame.data[12] as u16) << 8 | (frame.data[13] as u16);
@@ -47,8 +50,18 @@ fn test_receive_loop() {
             println!(
                 "Received Packet [{} bytes] | Dest: {:02X}:{:02X}:{:02X}:{:02X}:{:02X}:{:02X} | Src: {:02X}:{:02X}:{:02X}:{:02X}:{:02X}:{:02X} | Type: 0x{:04X}",
                 frame.length,
-                dest[0], dest[1], dest[2], dest[3], dest[4], dest[5],
-                src[0], src[1], src[2], src[3], src[4], src[5],
+                dest[0],
+                dest[1],
+                dest[2],
+                dest[3],
+                dest[4],
+                dest[5],
+                src[0],
+                src[1],
+                src[2],
+                src[3],
+                src[4],
+                src[5],
                 ethertype
             );
         }
