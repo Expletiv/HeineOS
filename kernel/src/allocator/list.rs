@@ -6,8 +6,8 @@
  *         Fabian Ruhland, Heinrich Heine University Duesseldorf, 2026-01-13
  */
 
+use crate::allocator::global::{Locked, align_up};
 use alloc::alloc::{GlobalAlloc, Layout};
-use crate::allocator::global::{align_up, Locked};
 
 /// Header of a free block in the list allocator.
 struct ListNode {
@@ -65,24 +65,35 @@ impl LinkedListAllocator {
         self.heap_start = heap_start;
         self.heap_end = heap_start + heap_size;
 
-        log::info!("List allocator initialized: 0x{:x} - 0x{:x} (Size: {} bytes)", heap_start, heap_start + heap_size, heap_size);
+        log::info!(
+            "List allocator initialized: 0x{:x} - 0x{:x} (Size: {} bytes)",
+            heap_start,
+            heap_start + heap_size,
+            heap_size
+        );
     }
 
     /// Sorts the given free memory block 'addr' into the list. Merges with adjacent blocks if possible.
     unsafe fn add_free_block(&mut self, addr: usize, size: usize) {
         let node = ListNode::new(size);
-        let mut node_ptr = addr as *mut ListNode;
+        let node_ptr = addr as *mut ListNode;
 
-        unsafe { node_ptr.write(node); }
+        unsafe {
+            node_ptr.write(node);
+        }
 
-        let mut new_node = unsafe { &mut *node_ptr };
+        let new_node = unsafe { &mut *node_ptr };
         let mut current = &mut self.head;
 
         // The new node will already have a valid next pointer once the while loop is finished
         while let Some(ref mut next) = current.next {
             // check for overlapping blocks
-            if new_node.start_addr() >= next.start_addr() && new_node.start_addr() < next.end_addr() {
-                panic!("Double free or overlapping block detected at {:#x}", new_node.start_addr());
+            if new_node.start_addr() >= next.start_addr() && new_node.start_addr() < next.end_addr()
+            {
+                panic!(
+                    "Double free or overlapping block detected at {:#x}",
+                    new_node.start_addr()
+                );
             }
 
             // new node comes after current and before next
@@ -111,15 +122,23 @@ impl LinkedListAllocator {
 
     unsafe fn merge_blocks(prev: &mut ListNode, next: &mut ListNode) {
         if prev.end_addr() == next.start_addr() {
-            prev.size += (*next).size;
-            prev.next = (*next).next.take();
+            prev.size += (next).size;
+            prev.next = (next).next.take();
         } else {
-            panic!("Cannot merge blocks at {:#x} and {:#x}", prev.end_addr(), next.start_addr());
+            panic!(
+                "Cannot merge blocks at {:#x} and {:#x}",
+                prev.end_addr(),
+                next.start_addr()
+            );
         }
     }
 
     /// Search a free block with the given size and alignment and remove it from the list.
-    fn find_free_block(&mut self, size: usize, align: usize) -> Option<(&'static mut ListNode, usize)> {
+    fn find_free_block(
+        &mut self,
+        size: usize,
+        align: usize,
+    ) -> Option<(&'static mut ListNode, usize)> {
         let mut current = &mut self.head;
 
         while let Some(ref mut block) = current.next {
@@ -144,7 +163,7 @@ impl LinkedListAllocator {
     }
 
     /// Check if the given block is large enough for an allocation with `size` and `align`.
-    fn check_block_for_alloc(block: &ListNode, size: usize, align: usize) -> Result<usize,()> {
+    fn check_block_for_alloc(block: &ListNode, size: usize, align: usize) -> Result<usize, ()> {
         let alloc_start = align_up(block.start_addr(), align);
         let alloc_end = alloc_start.checked_add(size).ok_or(())?;
 
@@ -212,18 +231,14 @@ impl LinkedListAllocator {
     pub unsafe fn dealloc(&mut self, ptr: *mut u8, layout: Layout) {
         let (size, _) = Self::size_align(layout);
 
-        unsafe {
-            self.add_free_block(ptr as usize, size)
-        }
+        unsafe { self.add_free_block(ptr as usize, size) }
     }
 }
 
 // Trait required by the Rust runtime for heap allocations
 unsafe impl GlobalAlloc for Locked<LinkedListAllocator> {
     unsafe fn alloc(&self, layout: Layout) -> *mut u8 {
-        unsafe {
-            self.lock().alloc(layout)
-        }
+        unsafe { self.lock().alloc(layout) }
     }
 
     unsafe fn dealloc(&self, ptr: *mut u8, layout: Layout) {

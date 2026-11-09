@@ -8,10 +8,10 @@
  * License: GPLv3
  */
 
-use core::fmt;
-use core::ops::{Add, Sub};
 use crate::consts::PAGE_SIZE;
 use crate::library::spinlock::Spinlock as Mutex;
+use core::fmt;
+use core::ops::{Add, Sub};
 
 pub static FRAME_ALLOCATOR: Mutex<PfListAllocator> = Mutex::new(PfListAllocator::new());
 
@@ -108,7 +108,7 @@ impl Sub<u64> for PhysAddr {
 /// Contains the size of the free block and a pointer to the next node.
 struct PfListNode {
     size: usize,
-    next: Option<&'static mut PfListNode>
+    next: Option<&'static mut PfListNode>,
 }
 
 impl PfListNode {
@@ -128,35 +128,164 @@ impl PfListNode {
 /// A physical frame allocator that uses a linked list to manage free memory blocks.
 /// Memory blocks are always aligned to PAGE_SIZE (4096 bytes).
 pub struct PfListAllocator {
-    head: PfListNode
+    head: PfListNode,
 }
 
 impl PfListAllocator {
     /// Create a new empty physical frame list allocator.
     pub const fn new() -> PfListAllocator {
         PfListAllocator {
-            head: PfListNode::new(0)
+            head: PfListNode::new(0),
         }
     }
 
     /// Try to allocate a block of 'num_frames' physical frames.
     /// Returns the starting physical address of the allocated block on success.
-    /// The found block is filled with zeroes. If the block is larger than requested,
+    /// If the block is larger than requested,
     /// the remaining part is added back to the free list.
     /// If no suitable block is found, returns None.
     pub unsafe fn alloc_block(&mut self, num_frames: usize) -> Option<PhysAddr> {
-        todo!("PfListAllocator::alloc_block() is not implemented yet")
+        assert!(num_frames > 0);
+
+        let size = num_frames * PAGE_SIZE;
+        let block = self.find_free_block(size)?;
+
+        if block.size > size {
+            // Block is larger than requested: cutoff the block at the end
+            // Insert the rest back into the list
+            let start_addr = block.end_addr() - size;
+
+            self.add_free_block(block.start_addr().raw() as usize, block.size - size);
+
+            return Some(start_addr);
+        }
+
+        Some(block.start_addr())
+    }
+
+    /// Search a free block with the given size and remove it from the list.
+    fn find_free_block(&mut self, size: usize) -> Option<&'static mut PfListNode> {
+        let mut current = &mut self.head;
+
+        while let Some(ref mut block) = current.next {
+            if block.size >= size {
+                let next = block.next.take();
+
+                // block is large enough, remove it from the list
+                let ret = Some(current.next.take().unwrap());
+
+                // link the previous block to the next block
+                current.next = next;
+
+                return ret;
+            } else {
+                // block too small, try next block
+                current = current.next.as_mut().unwrap();
+            }
+        }
+
+        // no block found
+        None
     }
 
     /// Free a previously allocated block of 'num_frames' physical frames starting at 'addr'.
     /// The address must be aligned to PAGE_SIZE (4096 bytes).
     /// The freed block is merged with adjacent free blocks if possible.
     pub unsafe fn free_block(&mut self, addr: PhysAddr, num_frames: usize) {
-        todo!("PfListAllocator::free_block() is not implemented yet")
+        assert!(addr.raw().is_multiple_of(PAGE_SIZE as u64));
+
+        self.add_free_block(addr.raw() as usize, num_frames * PAGE_SIZE);
+    }
+
+    /// Sorts the given free memory block 'addr' into the list. Merges with adjacent blocks if possible.
+    fn add_free_block(&mut self, addr: usize, size: usize) {
+        let node = PfListNode::new(size);
+        let node_ptr = addr as *mut PfListNode;
+
+        unsafe {
+            node_ptr.write(node);
+        }
+
+        let new_node = unsafe { &mut *node_ptr };
+        let mut current = &mut self.head;
+
+        // The new node will already have a valid next pointer once the while loop is finished
+        while let Some(ref mut next) = current.next {
+            // check for overlapping blocks
+            if new_node.start_addr() >= next.start_addr() && new_node.start_addr() < next.end_addr()
+            {
+                panic!(
+                    "Double free or overlapping block detected at {:?}",
+                    new_node.start_addr()
+                );
+            }
+
+            // new node comes after current and before next
+            if new_node.end_addr() < next.start_addr() {
+                new_node.next = current.next.take();
+                break;
+            }
+
+            // merge the new node with the next node
+            if new_node.end_addr() == next.start_addr() {
+                unsafe {
+                    Self::merge_blocks(new_node, next);
+                }
+                break;
+            }
+
+            // the new node comes after the next node, continue searching
+            current = current.next.as_mut().unwrap();
+        }
+
+        // Insert the new node after current or merge it with current (only if current != head)
+        if current.size > 0 && current.end_addr() == new_node.start_addr() {
+            unsafe {
+                Self::merge_blocks(current, new_node);
+            }
+        } else {
+            current.next = Some(new_node);
+        }
+    }
+
+    unsafe fn merge_blocks(prev: &mut PfListNode, next: &mut PfListNode) {
+        if prev.end_addr() == next.start_addr() {
+            prev.size += (next).size;
+            prev.next = (next).next.take();
+        } else {
+            panic!(
+                "Cannot merge blocks at {:?} and {:?}",
+                prev.end_addr(),
+                next.start_addr()
+            );
+        }
     }
 
     /// Print the list of free physical memory.
     pub fn dump_free_list(&self) {
-        todo!("PfListAllocator::dump_free_list() is not implemented yet")
+        println!("Free memory blocks:");
+        let mut current = &self.head;
+
+        while let Some(ref block) = current.next {
+            println!("  {:?} - {:?} ({} frames)", block.start_addr(), block.end_addr(), block.size / PAGE_SIZE);
+
+            current = block;
+        }
+    }
+
+    /// Count the free blocks and free frames in the list. Returns (blocks, frames).
+    pub fn free_list_stats(&self) -> (usize, usize) {
+        let mut blocks = 0;
+        let mut frames = 0;
+        let mut current = &self.head;
+
+        while let Some(ref block) = current.next {
+            blocks += 1;
+            frames += block.size / PAGE_SIZE;
+
+            current = block;
+        }
+
+        (blocks, frames)
     }
 }

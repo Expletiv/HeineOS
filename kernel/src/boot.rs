@@ -20,7 +20,7 @@
 extern crate alloc;
 
 use crate::allocator::global::init_allocator;
-use crate::consts::{PAGE_SIZE, kernel_end};
+use crate::consts::{HEAP_SIZE, PAGE_SIZE, kernel_end};
 use crate::device::framebuffer::Framebuffer;
 use crate::device::serial::COM1;
 use crate::device::{cpu, keyboard, pic, pit, rtl8139, terminal};
@@ -99,15 +99,22 @@ pub extern "C" fn main(multiboot_magic: u32, multiboot: &multiboot::BootInfo) ->
     unsafe {
         load_gdt();
     }
-    
+
     // Temp solution: setup paging so user threads can access (all) pages
     setup_initial_paging();
-    
+
     init_physical_memory_allocator(&memory_map);
 
     info!("Kernel initialized successfully!");
 
-    init_allocator(consts::heap_start(), consts::HEAP_SIZE);
+    let heap_start = unsafe {
+        FRAME_ALLOCATOR
+            .lock()
+            .alloc_block(HEAP_SIZE / PAGE_SIZE)
+            .unwrap()
+    };
+
+    init_allocator(heap_start.raw() as usize, HEAP_SIZE);
 
     // Find initial ramdisk (initrd) in memory
     let initrd = multiboot
