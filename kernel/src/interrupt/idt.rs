@@ -94,7 +94,7 @@ impl IdtEntry {
             offset_low,
             offset_mid,
             offset_high,
-            selector: 8,
+            selector: 8, // First entry in the GDT
             options,
             reserved: 0,
         }
