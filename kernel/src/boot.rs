@@ -20,15 +20,18 @@
 extern crate alloc;
 
 use crate::allocator::global::init_allocator;
+use crate::consts::{PAGE_SIZE, kernel_end};
 use crate::device::framebuffer::Framebuffer;
 use crate::device::serial::COM1;
 use crate::device::{cpu, keyboard, pic, pit, rtl8139, terminal};
 use crate::filesystem::tarfs;
 use crate::interrupt::dispatcher;
 use crate::logger::Logger;
+use crate::paging::frames::{FRAME_ALLOCATOR, PhysAddr};
 use crate::paging::pages::setup_initial_paging;
 use log::{debug, error, info};
-use uefi::mem::memory_map::MemoryMapOwned;
+use uefi::boot::MemoryType;
+use uefi::mem::memory_map::{MemoryMap, MemoryMapOwned};
 
 #[macro_use]
 mod device;
@@ -90,15 +93,17 @@ pub extern "C" fn main(multiboot_magic: u32, multiboot: &multiboot::BootInfo) ->
     // Exit UEFI boot services. At this point, the UEFI boot services are still active.
     // By exiting them, the UEFI BIOS frees up resources and hands over full control to the kernel.
     // Furthermore, we get the memory map, which we need to check which memory regions are free to use.
-    let _ = exit_uefi_boot_services(multiboot);
+    let memory_map = exit_uefi_boot_services(multiboot);
 
     // Load the Global Descriptor Table (code in boot.asm)
     unsafe {
         load_gdt();
     }
-
+    
     // Temp solution: setup paging so user threads can access (all) pages
     setup_initial_paging();
+    
+    init_physical_memory_allocator(&memory_map);
 
     info!("Kernel initialized successfully!");
 
@@ -143,7 +148,7 @@ pub extern "C" fn main(multiboot_magic: u32, multiboot: &multiboot::BootInfo) ->
 }
 
 /// Exit UEFI boot services.
-/// When the kernel start, the UEFI boot services are still active.
+/// When the kernel starts, the UEFI boot services are still active.
 /// This function exits the UEFI boot services and returns the memory map.
 ///
 /// The memory map contains information about the system memory layout,
@@ -212,6 +217,50 @@ fn exit_uefi_boot_services(multiboot: &multiboot::BootInfo) -> MemoryMapOwned {
     // We can now exit the UEFI boot services and retrieve the memory map.
     info!("Exiting UEFI boot services...");
     unsafe { uefi::boot::exit_boot_services(None) }
+}
+
+/// Initialize the physical memory allocator.
+/// This function iterates through the memory map and inserts all available blocks into the page frame allocator.
+/// It should only be called once during startup, after the UEFI boot services have been exited.
+fn init_physical_memory_allocator(memory_map: &MemoryMapOwned) {
+    let kernel_end = kernel_end() as u64;
+    let mut allocator = FRAME_ALLOCATOR.lock();
+
+    for entry in memory_map
+        .entries()
+        .filter(|entry| entry.ty == MemoryType::CONVENTIONAL)
+    {
+        let mut start = entry.phys_start;
+        let mut end = entry.phys_start + entry.page_count * PAGE_SIZE as u64;
+
+        // Check for overlap with kernel memory
+        if start < kernel_end {
+            start = kernel_end;
+            if start >= end {
+                continue;
+            }
+        }
+
+        // Align start and end address to 4096 bytes
+        if start % (PAGE_SIZE as u64) != 0 {
+            start = (start / (PAGE_SIZE as u64) + 1) * (PAGE_SIZE as u64);
+        }
+        if end % (PAGE_SIZE as u64) != 0 {
+            end = (end / (PAGE_SIZE as u64)) * (PAGE_SIZE as u64);
+        }
+
+        // Insert block into physical memory allocator
+        let num_frames = ((end - start) / (PAGE_SIZE as u64)) as usize;
+        if num_frames > 0 {
+            debug!(
+                "Inserting physical memory block (Addr: 0x{:x}, Size: {} frames)",
+                start, num_frames
+            );
+            unsafe {
+                allocator.free_block(PhysAddr::new(start), num_frames);
+            }
+        }
+    }
 }
 
 #[panic_handler]
