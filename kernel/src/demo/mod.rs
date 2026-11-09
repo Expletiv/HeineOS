@@ -5,4 +5,7 @@ pub mod lesson4;
 pub mod lesson5;
 pub mod lesson6;
 pub mod lesson7;
+pub mod lesson8;
+pub mod lesson9;
+pub mod lesson10;
 pub mod menu;

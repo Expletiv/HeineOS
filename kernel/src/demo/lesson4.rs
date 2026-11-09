@@ -52,9 +52,9 @@ fn coroutine_loop(coroutine: &mut Coroutine) {
 pub fn thread_demo() {
     println!("Thread Demo:");
 
-    let a = Thread::new(thread_entry);
-    let b = Thread::new(thread_entry);
-    let c = Thread::new(thread_entry);
+    let a = Thread::new_kernel_thread(thread_entry);
+    let b = Thread::new_kernel_thread(thread_entry);
+    let c = Thread::new_kernel_thread(thread_entry);
 
     let scheduler = scheduler();
     scheduler.ready(a);
@@ -84,7 +84,11 @@ fn thread_entry() {
 
             if counter == 5001 {
                 terminal.set_pos(8, 5);
-                print_terminal!(&mut terminal, "Thread [{}] killed the other threads and exits itself.", tid);
+                print_terminal!(
+                    &mut terminal,
+                    "Thread [{}] killed the other threads and exits itself.",
+                    tid
+                );
 
                 scheduler.exit();
             }

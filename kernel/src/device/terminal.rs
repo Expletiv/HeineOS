@@ -6,12 +6,12 @@
  * License: GPLv3
  */
 
-use core::fmt;
-use core::fmt::Write;
-use crate::device::{font_8x8, framebuffer};
+use crate::device::framebuffer;
 use crate::device::framebuffer::Framebuffer;
 use crate::library::once::Once;
 use crate::library::spinlock::Spinlock;
+use core::fmt;
+use core::fmt::Write;
 
 /// Global terminal instance protected by a spinlock.
 /// This instance is initialized once during kernel startup.
@@ -60,7 +60,7 @@ pub struct Terminal {
     /// The framebuffer used for rendering text.
     /// Protected by a spinlock to allow safe concurrent access.
     /// This allows safe access to the framebuffer from multiple threads via the `framebuffer()` method.
-    framebuffer: Spinlock<Framebuffer>
+    framebuffer: Spinlock<Framebuffer>,
 }
 
 impl Terminal {
@@ -76,7 +76,7 @@ impl Terminal {
             cols,
             rows,
             pos: (0, 0),
-            framebuffer: Spinlock::new(framebuffer)
+            framebuffer: Spinlock::new(framebuffer),
         }
     }
 
@@ -90,6 +90,11 @@ impl Terminal {
     /// Get the current cursor position (column, row).
     pub fn pos(&self) -> (usize, usize) {
         self.pos
+    }
+
+    /// Get the terminal size (columns, rows).
+    pub fn size(&self) -> (usize, usize) {
+        (self.cols, self.rows)
     }
 
     /// Set the cursor position to the given position.
@@ -214,5 +219,7 @@ macro_rules! println_terminal {
 
 /// Helper function for the print macros.
 pub fn print(terminal: &mut Terminal, args: fmt::Arguments) {
-    terminal.write_fmt(args).expect("Failed to write to terminal");
+    terminal
+        .write_fmt(args)
+        .expect("Failed to write to terminal");
 }

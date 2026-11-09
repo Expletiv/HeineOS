@@ -6,7 +6,26 @@
  *         Fabian Ruhland, Heinrich Heine University Duesseldorf, 2026-01-07
  */
 
+use bitflags::bitflags;
 use core::arch::asm;
+
+bitflags! {
+    #[derive(Debug, Clone, Copy)]
+    /// Flags in the CR0 control register (Intel SDM Vol. 3, chapter 2.5).
+    pub struct Cr0Flags: u64 {
+        const PROTECTION_ENABLE = 1 << 0;
+        const MONITOR_COPROCESSOR = 1 << 1;
+        const EMULATION = 1 << 2;
+        const TASK_SWITCHED = 1 << 3;
+        const EXTENSION_TYPE = 1 << 4;
+        const NUMERIC_ERROR = 1 << 5;
+        const WRITE_PROTECT = 1 << 16;
+        const ALIGNMENT_MASK = 1 << 18;
+        const NOT_WRITE_THROUGH = 1 << 29;
+        const CACHE_DISABLE = 1 << 30;
+        const PAGING = 1 << 31;
+    }
+}
 
 /// Represents an I/O-port for reading and writing data.
 pub struct IoPort {
@@ -179,6 +198,34 @@ pub fn get_flags() -> u64 {
     }
 
     rflags
+}
+
+/// Read the CR0 control register.
+/// Unknown bits are retained, so that the value can be written back unchanged.
+#[inline]
+pub fn read_cr0() -> Cr0Flags {
+    let cr0: u64;
+    unsafe {
+        asm!(
+        "mov {}, cr0",
+        out(reg) cr0,
+        options(nomem, nostack, preserves_flags)
+        );
+    }
+
+    Cr0Flags::from_bits_retain(cr0)
+}
+
+/// Write the CR0 control register.
+#[inline]
+pub fn write_cr0(flags: Cr0Flags) {
+    unsafe {
+        asm!(
+        "mov cr0, {}",
+        in(reg) flags.bits(),
+        options(nostack, preserves_flags)
+        );
+    }
 }
 
 /// Execute a closure without interrupts

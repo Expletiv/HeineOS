@@ -7,15 +7,15 @@
  * License: GPLv3
  */
 
-use alloc::boxed::Box;
-use core::fmt::Display;
-use core::{fmt, ptr};
 use crate::allocator;
 use crate::library::once::Once;
 use crate::library::queue::LinkedQueue;
 use crate::library::spinlock::Spinlock;
 use crate::thread::idle_thread::idle_thread;
 use crate::thread::thread::Thread;
+use alloc::boxed::Box;
+use core::fmt::Display;
+use core::{fmt, ptr};
 
 /// Global scheduler instance
 static SCHEDULER: Once<Scheduler> = Once::new();
@@ -59,13 +59,15 @@ impl Scheduler {
     /// and an idle thread as the active thread.
     pub fn new() -> Self {
         let state = SchedulerState {
-            active_thread: Some(Thread::new(idle_thread)),
+            active_thread: Some(Thread::new_kernel_thread(idle_thread)),
             ready_queue: LinkedQueue::new(),
             terminated_threads: LinkedQueue::new(),
             initialized: false,
         };
 
-        Scheduler { state: Spinlock::new(state) }
+        Scheduler {
+            state: Spinlock::new(state),
+        }
     }
 
     /// Get the ID of the currently active thread.
@@ -152,7 +154,7 @@ impl Scheduler {
 
         let mut current = state.active_thread.take().unwrap();
         let current_ptr = ptr::from_mut(current.as_mut());
-        
+
         state.active_thread = Some(next);
         state.ready_queue.enqueue(current);
 

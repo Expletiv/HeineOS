@@ -9,7 +9,6 @@
 #![feature(abi_x86_interrupt)]
 #![feature(unsafe_cell_access)]
 #![feature(c_size_t)]
-
 // Silence compiler warnings.
 // This is done to avoid overwhelming compiler output when building the OS at the beginning.
 // As you move on with the course, the warnings for unused functions or parameters will become less relevant,
@@ -20,31 +19,34 @@
 
 extern crate alloc;
 
-use core::arch::asm;
-use core::fmt::Write;
-use log::{debug, error, info};
-use uefi::mem::memory_map::MemoryMapOwned;
 use crate::allocator::global::init_allocator;
+use crate::consts::{HEAP_SIZE, PAGE_SIZE, kernel_end};
 use crate::device::framebuffer::Framebuffer;
 use crate::device::serial::COM1;
 use crate::device::{cpu, keyboard, pic, pit, rtl8139, terminal};
 use crate::filesystem::tarfs;
 use crate::interrupt::dispatcher;
 use crate::logger::Logger;
-use crate::thread::scheduler;
+use crate::paging::frames::{FRAME_ALLOCATOR, PhysAddr};
+use crate::paging::pages::setup_initial_paging;
+use log::{debug, error, info};
+use uefi::boot::MemoryType;
+use uefi::mem::memory_map::{MemoryMap, MemoryMapOwned};
 
 #[macro_use]
 mod device;
+mod allocator;
+mod consts;
+mod coroutine;
+mod demo;
+mod filesystem;
+mod interrupt;
 mod library;
 mod logger;
 mod multiboot;
-mod demo;
-mod consts;
-mod allocator;
-mod interrupt;
+mod paging;
+mod syscall;
 mod thread;
-mod coroutine;
-mod filesystem;
 
 unsafe extern "C" {
     fn load_gdt();
@@ -79,8 +81,8 @@ pub extern "C" fn main(multiboot_magic: u32, multiboot: &multiboot::BootInfo) ->
         .find_tag::<multiboot::FramebufferInfo>(multiboot::TagType::FramebufferInfo)
         .expect("Missing framebuffer info");
 
-    let framebuffer = Framebuffer::from_multiboot(framebuffer_info)
-        .expect("Failed to initialize framebuffer");
+    let framebuffer =
+        Framebuffer::from_multiboot(framebuffer_info).expect("Failed to initialize framebuffer");
 
     // Initialize the terminal for text output.
     // The terminal takes ownership of the framebuffer, so we cannot use it directly anymore after this point.
@@ -91,25 +93,40 @@ pub extern "C" fn main(multiboot_magic: u32, multiboot: &multiboot::BootInfo) ->
     // Exit UEFI boot services. At this point, the UEFI boot services are still active.
     // By exiting them, the UEFI BIOS frees up resources and hands over full control to the kernel.
     // Furthermore, we get the memory map, which we need to check which memory regions are free to use.
-    let _ = exit_uefi_boot_services(multiboot);
+    let memory_map = exit_uefi_boot_services(multiboot);
 
     // Load the Global Descriptor Table (code in boot.asm)
-    unsafe { load_gdt(); }
+    unsafe {
+        load_gdt();
+    }
+
+    // Temp solution: setup paging so user threads can access (all) pages
+    setup_initial_paging();
+
+    init_physical_memory_allocator(&memory_map);
 
     info!("Kernel initialized successfully!");
 
-    init_allocator(consts::heap_start(), consts::HEAP_SIZE);
+    let heap_start = unsafe {
+        FRAME_ALLOCATOR
+            .lock()
+            .alloc_block(HEAP_SIZE / PAGE_SIZE)
+            .unwrap()
+    };
+
+    init_allocator(heap_start.raw() as usize, HEAP_SIZE);
 
     // Find initial ramdisk (initrd) in memory
     let initrd = multiboot
         .find_tag::<multiboot::ModuleTag>(multiboot::TagType::Module)
         .expect("Missing initial ramdisk");
 
-    let tarfs_archive = tar_no_std::TarArchiveRef::new(initrd.as_slice()).expect("Failed to parse initrd");
+    let tarfs_archive =
+        tar_no_std::TarArchiveRef::new(initrd.as_slice()).expect("Failed to parse initrd");
 
     info!("Initializing tarfs filesystem");
     tarfs::init_filesystem(tarfs_archive);
-    
+
     info!("Initializing interrupt dispatcher");
     dispatcher::init_interrupt_dispatcher();
 
@@ -130,7 +147,7 @@ pub extern "C" fn main(multiboot_magic: u32, multiboot: &multiboot::BootInfo) ->
 
     info!("Enabling interrupts");
     cpu::enable_int();
-    
+
     demo::menu::demo_menu();
 
     // Endless loop, as we cannot return from main().
@@ -138,7 +155,7 @@ pub extern "C" fn main(multiboot_magic: u32, multiboot: &multiboot::BootInfo) ->
 }
 
 /// Exit UEFI boot services.
-/// When the kernel start, the UEFI boot services are still active.
+/// When the kernel starts, the UEFI boot services are still active.
 /// This function exits the UEFI boot services and returns the memory map.
 ///
 /// The memory map contains information about the system memory layout,
@@ -147,7 +164,12 @@ fn exit_uefi_boot_services(multiboot: &multiboot::BootInfo) -> MemoryMapOwned {
     // Check if the bootloader terminated the EFI boot services.
     // The bootloader provides this information via a multiboot tag.
     // If this tag is not present, the boot services were terminated and we cannot proceed.
-    if multiboot.find_tag::<multiboot::EfiBootServicesNotTerminatedTag>(multiboot::TagType::EfiBootServicesNotTerminated).is_none() {
+    if multiboot
+        .find_tag::<multiboot::EfiBootServicesNotTerminatedTag>(
+            multiboot::TagType::EfiBootServicesNotTerminated,
+        )
+        .is_none()
+    {
         panic!("EFI boot services were terminated by the bootloader");
     }
 
@@ -155,27 +177,44 @@ fn exit_uefi_boot_services(multiboot: &multiboot::BootInfo) -> MemoryMapOwned {
     // The map_or_else() function takes two closures:
     // The first one is called if the tag is not found, causing a panic.
     // The second one is called if the tag is found, where we set the image handle and system table.
-    if let Some(image_handle_tag) = multiboot.find_tag::<multiboot::Efi64BitImageHandleTag>(multiboot::TagType::Efi64BitImageHandlePointer) {
+    if let Some(image_handle_tag) = multiboot.find_tag::<multiboot::Efi64BitImageHandleTag>(
+        multiboot::TagType::Efi64BitImageHandlePointer,
+    ) {
         // The tag is found, we can log the image handle address.
-        debug!("EFI image is located at: {:#x}", image_handle_tag.as_ptr() as usize);
+        debug!(
+            "EFI image is located at: {:#x}",
+            image_handle_tag.as_ptr() as usize
+        );
 
         // We use the `uefi` crate to communicate with the UEFI firmware.
         // For that, we first need to set the EFI image handle and system table pointers in the `uefi` crate.
         unsafe {
-            let image_handle = uefi::Handle::from_ptr(image_handle_tag.as_ptr()).expect("Failed to get EFI image handle");
+            let image_handle = uefi::Handle::from_ptr(image_handle_tag.as_ptr())
+                .expect("Failed to get EFI image handle");
             uefi::boot::set_image_handle(image_handle);
         }
 
         // Now we retrieve the EFI system table pointer from the multiboot information.
-        multiboot.find_tag::<multiboot::Efi64BitSystemTableTag>(multiboot::TagType::Efi64BitSystemTablePointer)
-            .map_or_else(|| {
-                // If the tag is not found, panic with an error message.
-                panic!("Missing EFI system table pointer tag");
-            },|efi_system_table_tag| {
-                // The tag is found, we can log the system table address and set it in the `uefi` crate.
-                debug!("EFI system table is located at: {:#x}", efi_system_table_tag.as_ptr() as usize);
-                unsafe { uefi::table::set_system_table(efi_system_table_tag.as_ptr()); }
-            });
+        multiboot
+            .find_tag::<multiboot::Efi64BitSystemTableTag>(
+                multiboot::TagType::Efi64BitSystemTablePointer,
+            )
+            .map_or_else(
+                || {
+                    // If the tag is not found, panic with an error message.
+                    panic!("Missing EFI system table pointer tag");
+                },
+                |efi_system_table_tag| {
+                    // The tag is found, we can log the system table address and set it in the `uefi` crate.
+                    debug!(
+                        "EFI system table is located at: {:#x}",
+                        efi_system_table_tag.as_ptr() as usize
+                    );
+                    unsafe {
+                        uefi::table::set_system_table(efi_system_table_tag.as_ptr());
+                    }
+                },
+            );
     } else {
         // If the tag is not found, panic with an error message.
         panic!("Missing EFI image handle pointer tag")
@@ -185,6 +224,50 @@ fn exit_uefi_boot_services(multiboot: &multiboot::BootInfo) -> MemoryMapOwned {
     // We can now exit the UEFI boot services and retrieve the memory map.
     info!("Exiting UEFI boot services...");
     unsafe { uefi::boot::exit_boot_services(None) }
+}
+
+/// Initialize the physical memory allocator.
+/// This function iterates through the memory map and inserts all available blocks into the page frame allocator.
+/// It should only be called once during startup, after the UEFI boot services have been exited.
+fn init_physical_memory_allocator(memory_map: &MemoryMapOwned) {
+    let kernel_end = kernel_end() as u64;
+    let mut allocator = FRAME_ALLOCATOR.lock();
+
+    for entry in memory_map
+        .entries()
+        .filter(|entry| entry.ty == MemoryType::CONVENTIONAL)
+    {
+        let mut start = entry.phys_start;
+        let mut end = entry.phys_start + entry.page_count * PAGE_SIZE as u64;
+
+        // Check for overlap with kernel memory
+        if start < kernel_end {
+            start = kernel_end;
+            if start >= end {
+                continue;
+            }
+        }
+
+        // Align start and end address to 4096 bytes
+        if start % (PAGE_SIZE as u64) != 0 {
+            start = (start / (PAGE_SIZE as u64) + 1) * (PAGE_SIZE as u64);
+        }
+        if end % (PAGE_SIZE as u64) != 0 {
+            end = (end / (PAGE_SIZE as u64)) * (PAGE_SIZE as u64);
+        }
+
+        // Insert block into physical memory allocator
+        let num_frames = ((end - start) / (PAGE_SIZE as u64)) as usize;
+        if num_frames > 0 {
+            debug!(
+                "Inserting physical memory block (Addr: 0x{:x}, Size: {} frames)",
+                start, num_frames
+            );
+            unsafe {
+                allocator.free_block(PhysAddr::new(start), num_frames);
+            }
+        }
+    }
 }
 
 #[panic_handler]
